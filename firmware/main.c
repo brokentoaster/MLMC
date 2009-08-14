@@ -63,7 +63,7 @@ $Author$
 // For FAST USI
 #define USICLK_L  (1<<USIWM0)|(0<<USICS0)|(1<<USITC)
 #define USICLK_H  (1<<USIWM0)|(0<<USICS0)|(1<<USICLK)|(1<<USITC)
-#define HW_SPI 0  ///< set to 1 to use the fast inbuild USI interface
+#define HW_SPI 0  ///< set to 1 to use the fast inbuild USI interface 150x faster.
 
 //debug macros
 #define DEBUG_TRIGGER PINB = (1<<DEBUG)
@@ -71,8 +71,8 @@ $Author$
 #define BUFFERSIZE 32  ///< Size of ring buffer should be a power of 2
 volatile uint8_t buffer[BUFFERSIZE]; ///< Buffer to contain the 256 bits on the screen.
 volatile uint8_t buffer_index; ///< pointer to current start of buffer.
-volatile uint16_t serial_in_buffer;
-volatile uint8_t serial_in_index;
+register uint16_t serial_in_buffer;
+register uint8_t serial_in_index;
 //uint8_t screen_buffer[256]; ///< Screen buffer one byte per pixel.
 
 
@@ -167,20 +167,12 @@ void init_serial_input(void)
  * MSB is first.
  */
 ISR(INT0_vect){
-    int8_t bit;
-    DEBUG_TRIGGER;
-
     serial_in_index--;
     
     // set bit
     if (PINA & (1<< SD_IN)){
         serial_in_buffer |= (1<<serial_in_index);
-          //Send_byte_next_module(serial_in_buffer);
     }
-
-  
-       DEBUG_TRIGGER;
- //  }
 }
 
 /**
@@ -474,10 +466,10 @@ int main(void)
       //  test_pins();
       //  Send_byte_next_module(0);
       //  Send_byte_next_module(0); 
-        
+        DEBUG_TRIGGER;
         draw_screen();
     //    _delay_ms(50);
-        
+        DEBUG_TRIGGER;
         // have we got a new word?
         if (serial_in_index==0 ){
             
