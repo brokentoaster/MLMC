@@ -3,11 +3,14 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 42;
+	objectVersion = 45;
 	objects = {
 
 /* Begin PBXFileReference section */
-		4079525E0CEA38CC00E202DC /* main.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
+		01F5AD05102F755D00D832A0 /* font_ttuf2.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = font_ttuf2.h; sourceTree = "<group>"; };
+		01F5AD06102F755D00D832A0 /* fontset0.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = fontset0.h; sourceTree = "<group>"; };
+		01F5AD07102F755D00D832A0 /* font_ttuf1.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = font_ttuf1.h; sourceTree = "<group>"; };
+		4079525E0CEA38CC00E202DC /* main.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.c; };
 		4079525F0CEA38CC00E202DC /* Makefile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.make; path = Makefile; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -22,6 +25,9 @@
 		4079525D0CEA38CC00E202DC /* firmware */ = {
 			isa = PBXGroup;
 			children = (
+				01F5AD05102F755D00D832A0 /* font_ttuf2.h */,
+				01F5AD06102F755D00D832A0 /* fontset0.h */,
+				01F5AD07102F755D00D832A0 /* font_ttuf1.h */,
 				4079525F0CEA38CC00E202DC /* Makefile */,
 				4079525E0CEA38CC00E202DC /* main.c */,
 			);
@@ -33,7 +39,7 @@
 /* Begin PBXLegacyTarget section */
 		407952600CEA391500E202DC /* firmware */ = {
 			isa = PBXLegacyTarget;
-			buildArgumentsString = $ACTION;
+			buildArgumentsString = "$ACTION install";
 			buildConfigurationList = 407952610CEA393300E202DC /* Build configuration list for PBXLegacyTarget "firmware" */;
 			buildPhases = (
 			);
@@ -51,7 +57,7 @@
 		4079523D0CEA382200E202DC /* Project object */ = {
 			isa = PBXProject;
 			buildConfigurationList = 4079523E0CEA382200E202DC /* Build configuration list for PBXProject "matrix_module" */;
-			compatibilityVersion = "Xcode 2.4";
+			compatibilityVersion = "Xcode 3.1";
 			hasScannedForEncodings = 0;
 			mainGroup = 4079523B0CEA382200E202DC;
 			projectDirPath = "";
