@@ -14,48 +14,36 @@
 #                is connected.
 # FUSES ........ Parameters for avrdude to flash the fuses appropriately.
 
-DEVICE     = atmega8
+DEVICE     = attiny261
 CLOCK      = 8000000
-PROGRAMMER = -c stk500v2 -P avrdoper
+PROGRAMMER = -c avrisp2 -P /dev/cu.usbserial-ER051111
 OBJECTS    = main.o
-FUSES      = -U hfuse:w:0xd9:m -U lfuse:w:0x24:m
-# ATMega8 fuse bits (fuse bits for other devices are different!):
+FUSES      = -U hfuse:w:0xdf:m -U lfuse:w:0xe2:m
+
+# ATtiny261 fuse bits (fuse bits for other devices are different!):
 # Example for 8 MHz internal oscillator
+
+
+# Fuse ext byte:
+# 0xff = 1 1 1 1   1 1 1 0 <-- SELFPRGEN (set to 0 to enable self programming )  
+
 # Fuse high byte:
-# 0xd9 = 1 1 0 1   1 0 0 1 <-- BOOTRST (boot reset vector at 0x0000)
-#        ^ ^ ^ ^   ^ ^ ^------ BOOTSZ0
-#        | | | |   | +-------- BOOTSZ1
+# 0xdf = 1 1 0 1   1 1 1 1 <-- BODLEVEL0 (if 0: 4V, if 1: 2.7V)
+#        ^ ^ ^ ^   ^ ^ ^------ BODLEVEL1 (if 0: 4V, if 1: 2.7V)
+#        | | | |   | +-------- BODLEVEL2 (if 0: 4V, if 1: 2.7V)\
 #        | | | |   +---------- EESAVE (set to 0 to preserve EEPROM over chip erase)
-#        | | | +-------------- CKOPT (clock option, depends on oscillator type)
+#        | | | +-------------- WDTON (if set to 0, watchdog is always on)
 #        | | +---------------- SPIEN (if set to 1, serial programming is disabled)
-#        | +------------------ WDTON (if set to 0, watchdog is always on)
+#        | +------------------ DWIEN (if set to 1, serial programming is disabled)
 #        +-------------------- RSTDISBL (if set to 0, RESET pin is disabled)
+
 # Fuse low byte:
-# 0x24 = 0 0 1 0   0 1 0 0
+# 0xe4 = 1 1 1 0   0 0 1 0 
 #        ^ ^ \ /   \--+--/
 #        | |  |       +------- CKSEL 3..0 (8M internal RC)
-#        | |  +--------------- SUT 1..0 (slowly rising power)
-#        | +------------------ BODEN (if 0, brown-out detector is enabled)
-#        +-------------------- BODLEVEL (if 0: 4V, if 1: 2.7V)
-
-# Example for 12 MHz external crystal:
-# Fuse high byte:
-# 0xc9 = 1 1 0 0   1 0 0 1 <-- BOOTRST (boot reset vector at 0x0000)
-#        ^ ^ ^ ^   ^ ^ ^------ BOOTSZ0
-#        | | | |   | +-------- BOOTSZ1
-#        | | | |   +---------- EESAVE (set to 0 to preserve EEPROM over chip erase)
-#        | | | +-------------- CKOPT (clock option, depends on oscillator type)
-#        | | +---------------- SPIEN (if set to 1, serial programming is disabled)
-#        | +------------------ WDTON (if set to 0, watchdog is always on)
-#        +-------------------- RSTDISBL (if set to 0, RESET pin is disabled)
-# Fuse low byte:
-# 0x9f = 1 0 0 1   1 1 1 1
-#        ^ ^ \ /   \--+--/
-#        | |  |       +------- CKSEL 3..0 (external >8M crystal)
 #        | |  +--------------- SUT 1..0 (crystal osc, BOD enabled)
-#        | +------------------ BODEN (if 0, brown-out detector is enabled)
-#        +-------------------- BODLEVEL (if 0: 4V, if 1: 2.7V)
-
+#        | +------------------ CKOUT (if 0, brown-out detector is enabled)
+#        +-------------------- CKDIV8 (if set to 0, clock divided to 8)
 
 # Tune the lines below only if you know what you are doing:
 
