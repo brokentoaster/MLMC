@@ -65,14 +65,18 @@ $Author$
 #define USICLK_H  (1<<USIWM0)|(0<<USICS0)|(1<<USICLK)|(1<<USITC)
 #define HW_SPI 0  ///< set to 1 to use the fast inbuild USI interface 150x faster.
 
+#define SOUT_DELAY_US 15 ///< us to wait in the clock cycle
+
 //debug macros
 #define DEBUG_TRIGGER PINB = (1<<DEBUG)
 
 #define BUFFERSIZE 32  ///< Size of ring buffer should be a power of 2
 volatile uint8_t buffer[BUFFERSIZE]; ///< Buffer to contain the 256 bits on the screen.
 volatile uint8_t buffer_index; ///< pointer to current start of buffer.
-register uint16_t serial_in_buffer;
-register uint8_t serial_in_index;
+volatile uint16_t serial_in_buffer;
+volatile uint16_t serial_out_buffer;
+volatile uint8_t serial_in_index;
+volatile uint8_t sin_flag;
 //uint8_t screen_buffer[256]; ///< Screen buffer one byte per pixel.
 
 
@@ -148,7 +152,11 @@ void init_serial_input(void)
     buffer_index =0;
     
     // rising edge generates an interupt 
-    MCUCR |= (1<<ISC01)|(1<<ISC00);
+  //  MCUCR |= (1<<ISC01)|(1<<ISC00);
+    
+    // any edge generates an interupt 
+    MCUCR |= (0<<ISC01)|(1<<ISC00);
+    
     
     // INT0 only
     GIMSK = (0<<INT1)|(1<<INT0)|(0<<PCIE1)|(0<<PCIE0);
@@ -164,15 +172,33 @@ void init_serial_input(void)
  * line. The bit will be clocked into the current buffer once 16 bits have been 
  * recieved they will be move into the main buffer and the old bits clocked 
  * out the serial out interface.
+ * This simultaneously clocks out old data 
  * MSB is first.
  */
 ISR(INT0_vect){
-    serial_in_index--;
+
+    // look for a rising edge
+    if (PINB & (1<<SCLCK_IN)){ 
+        serial_in_index--;
+   
+        // set bit in buffer
+        if (PINA & (1<< SD_IN) ){ 
+            serial_in_buffer |= (1<<serial_in_index);
+        }
+        
+        PORTA &= ~( (1<<SCLCK_OUT));  // clear clock  
+        
+        // set/clear bit on outgoing serial
+        if (serial_out_buffer & (1<<serial_in_index)){
+            PORTA |= (1<<SD_OUT);                  // set data bit
+        }else{
+            PORTA &= ~(1<<SD_OUT);                 // clear data bit
+        }
+    }else{ // A falling edge
+        PORTA |= (1<<SCLCK_OUT);                   // set outgoing clock line
+
+    }        
     
-    // set bit
-    if (PINA & (1<< SD_IN)){
-        serial_in_buffer |= (1<<serial_in_index);
-    }
 }
 
 /**
@@ -192,6 +218,7 @@ void Send_byte_next_module( uint8_t data ///< 8 bit data to be sent
     
     for (i=0;i<8;i++){
         PORTA &= ~(1<<SCLCK_OUT);                 // clear clock line
+        _delay_us(SOUT_DELAY_US);
         
         if (temp & 0x80){
             PORTA |= (1<<SD_OUT);                  // set data bit
@@ -200,6 +227,8 @@ void Send_byte_next_module( uint8_t data ///< 8 bit data to be sent
         }
         PORTA |= (1<<SCLCK_OUT);                   // set clock line
         temp <<= 1;                                // shift allong by one
+        _delay_us(SOUT_DELAY_US); 
+        
     }
      PORTA &= ~( (1<<SCLCK_OUT)|(1<<SD_OUT) );     // clear clock and data line
 }
@@ -460,45 +489,51 @@ int main(void)
     //
     // Main Loop
     //
+
     for(;;){
         i++;
    
       //  test_pins();
       //  Send_byte_next_module(0);
       //  Send_byte_next_module(0); 
-        DEBUG_TRIGGER;
-        draw_screen();
+
+        
     //    _delay_ms(50);
-        DEBUG_TRIGGER;
-        // have we got a new word?
-        if (serial_in_index==0 ){
+        draw_screen();
+
+ 
+            // have we got a new word?
+            if (serial_in_index==0 ){
+                
+                //      Send_byte_next_module(serial_in_buffer>>8);
+                //      Send_byte_next_module(serial_in_buffer & 0xff);
+                
+                
+                // buffer[1] = serial_in_buffer>>8;
+                // buffer[0] =  serial_in_buffer & 0xff;
+                
+                // send out last items in buffer
+               serial_out_buffer = buffer[((buffer_index+0)&(BUFFERSIZE-1))]<<8;
+               serial_out_buffer += buffer[((buffer_index+1)&(BUFFERSIZE-1))];
+                
+                // replace with new bytes
+                buffer[((buffer_index+0)&(BUFFERSIZE-1))] = serial_in_buffer>>8;
+                buffer[((buffer_index+1)&(BUFFERSIZE-1))] = serial_in_buffer & 0xff;
+                
+                //shift buffer index
+                buffer_index++;
+                buffer_index++;
+                
+                //limit buffer index to 31
+                buffer_index &= BUFFERSIZE-1;
+                
+                serial_in_buffer =0;
+                serial_in_index =16;    
+                
+      
+                
+            }
             
-            //      Send_byte_next_module(serial_in_buffer>>8);
-            //      Send_byte_next_module(serial_in_buffer & 0xff);
-            
-            
-            // buffer[1] = serial_in_buffer>>8;
-            // buffer[0] =  serial_in_buffer & 0xff;
-            
-            // send out last items in buffer
-            Send_byte_next_module(buffer[((buffer_index+0)&(BUFFERSIZE-1))]);
-            Send_byte_next_module(buffer[((buffer_index+1)&(BUFFERSIZE-1))]);
-            
-            // replace with new bytes
-            buffer[((buffer_index+0)&(BUFFERSIZE-1))] = serial_in_buffer>>8;
-            buffer[((buffer_index+1)&(BUFFERSIZE-1))] = serial_in_buffer & 0xff;
-            
-            //shift buffer index
-            buffer_index++;
-            buffer_index++;
-            
-            //limit buffer index to 31
-            buffer_index &= BUFFERSIZE-1;
-            
-            serial_in_buffer =0;
-            serial_in_index =16;
-            
-        }
         
     }
     
