@@ -78,6 +78,7 @@ volatile uint16_t serial_out_buffer;
 volatile uint8_t serial_in_index;
 volatile uint8_t sin_flag;
 //uint8_t screen_buffer[256]; ///< Screen buffer one byte per pixel.
+volatile uint8_t timer_flag; ///< flag to indicate the regulate timer has elapsed
 
 
 /**
@@ -101,7 +102,34 @@ void init_pins (void)
     
     
 }
-
+/** 
+ * Initialize the Timer
+ *
+ * The timer is timer0 and uses the 8Mhz system clock to provide a 50 Hz update 
+ * rate for the screen.
+ */
+void init_timer0(void)
+{
+    
+    // Timer Counter 0 control register A
+    // 16 bit mode
+    TCCR0A = (1<<TCW0)|(0<<ICEN0)|(0<<ICNC0)|(0<<ICES0)| (0<<ACIC0)|(0<<WGM00);
+    
+    // Timer Conter 0 Interrupt Mask Register
+    // enable ouput compare A interrupt.
+    TIMSK  = (1<<OCIE0A); 
+    
+    // TimerCounter0 control register B
+    // reset the counter and set source to system clock with no prescaling.
+    TCCR0B  = (0<<TSM)|(1<<PSR0)|(0<<CS02)|(0<<CS01)|(1<<CS00);
+    
+    // set counter to 0x1f40 or 8000 counts this should give a 1ms interval  
+    OCR0B =0x1F;
+    OCR0A =0x40 ;
+    
+    timer_flag = 0 ;
+    
+}
 
 
 /**
@@ -200,6 +228,23 @@ ISR(INT0_vect){
     }        
     
 }
+
+/**
+ * Timer interrupt 
+ *
+ * This is use to update the screen periorically.
+ */
+ISR(TIMER0_COMPA_vect)
+{
+    DEBUG_TRIGGER;
+    TCNT0H=0;
+    TCNT0L=0;
+    timer_flag=1;
+    DEBUG_TRIGGER;
+}
+
+
+
 
 /**
  * Send a byte out the serial out port to next module
@@ -401,19 +446,26 @@ void draw_col(uint8_t column, ///< column to draw 0..15
 /**
  * Draw the buffer to the screen
  * 
- * This will draw the current buffer to the screen.
+ * This will draw a single column of the current buffer to the screen. The 
+ * column count will be incremented. 
  */
 void draw_screen(void)
 {
-    uint8_t i;
+    static uint8_t i=0;
     uint8_t j;
     
-    for (i=0;i<(BUFFERSIZE>>1);i++){
+//    for (i=0;i<(BUFFERSIZE>>1);i++)
+    if (i==(BUFFERSIZE>>1)){
+        i =0;
+    }else{
+        i++;
+    }
+    
         j = buffer_index + (i<<1) ;
         j &= BUFFERSIZE-1 ; // limit to  size of buffer
         draw_col(i, buffer[j+0], buffer[j+1] );
-    }
-     draw_col(i,0,0);
+    
+    // draw_col(i,0,0);
 }
 
 
@@ -468,6 +520,36 @@ void draw_screen_test(void)
 //
 
 
+/**
+ * Insert a word into the screen buffer
+ *
+ * Takes the last word recieved (serial_in_buffer) and puts it into the buffer
+ * the index pointer is moved along by two bytes to account for the two new 
+ * bytes in the the buffer.
+ */
+void insert_word_into_buffer(void)
+{
+    // send out last items in buffer
+    serial_out_buffer = buffer[((buffer_index+0)&(BUFFERSIZE-1))]<<8;
+    serial_out_buffer += buffer[((buffer_index+1)&(BUFFERSIZE-1))];
+    
+    // replace with new bytes
+    buffer[((buffer_index+0)&(BUFFERSIZE-1))] = serial_in_buffer>>8;
+    buffer[((buffer_index+1)&(BUFFERSIZE-1))] = serial_in_buffer & 0xff;
+    
+    //shift screen buffer index
+    buffer_index++;
+    buffer_index++;
+    
+    //limit screen buffer index to 31
+    buffer_index &= BUFFERSIZE-1;
+    
+    // reset the input buffer for next word.
+    serial_in_buffer =0;
+    serial_in_index =16;    
+}
+
+
 
 /**
  * Main operating loop for the software
@@ -481,60 +563,28 @@ int main(void)
     init_pins();
     init_usi();
     init_serial_input();
+    init_timer0();
+    
     for (i=0;i<32;i++){
         buffer[i]=i+1;
     }
     enable_output();
    // disable_ouput();
+    
+    
     //
     // Main Loop
     //
-
-    for(;;){
-        i++;
-   
-      //  test_pins();
-      //  Send_byte_next_module(0);
-      //  Send_byte_next_module(0); 
-
-        
-    //    _delay_ms(50);
-        draw_screen();
-
+    for(;;)
+        if (timer_flag){
+            timer_flag = 0; // reset the timer flag 
+            draw_screen();  // draw a single coloumnn of the screen buffer
+        }
  
-            // have we got a new word?
-            if (serial_in_index==0 ){
-                
-                //      Send_byte_next_module(serial_in_buffer>>8);
-                //      Send_byte_next_module(serial_in_buffer & 0xff);
-                
-                
-                // buffer[1] = serial_in_buffer>>8;
-                // buffer[0] =  serial_in_buffer & 0xff;
-                
-                // send out last items in buffer
-               serial_out_buffer = buffer[((buffer_index+0)&(BUFFERSIZE-1))]<<8;
-               serial_out_buffer += buffer[((buffer_index+1)&(BUFFERSIZE-1))];
-                
-                // replace with new bytes
-                buffer[((buffer_index+0)&(BUFFERSIZE-1))] = serial_in_buffer>>8;
-                buffer[((buffer_index+1)&(BUFFERSIZE-1))] = serial_in_buffer & 0xff;
-                
-                //shift buffer index
-                buffer_index++;
-                buffer_index++;
-                
-                //limit buffer index to 31
-                buffer_index &= BUFFERSIZE-1;
-                
-                serial_in_buffer =0;
-                serial_in_index =16;    
-                
-      
-                
-            }
-            
-        
+        // have we got a new word?
+        if (serial_in_index==0 ){
+            insert_word_into_buffer(); //save the word that just came in.
+        }
     }
     
     return 0;   /* never reached */
