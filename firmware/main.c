@@ -99,9 +99,9 @@ void init_pins (void)
     
     // Set the direction of pins on Port B
     DDRB = (0<<SCLCK_IN)|(1<<OE1)|(1<<SCK)|(0<<MISO)|(1<<SERIAL)|(1<<DEBUG);
-    
-    
 }
+
+
 /** 
  * Initialize the Timer
  *
@@ -123,8 +123,10 @@ void init_timer0(void)
     // reset the counter and set source to system clock with no prescaling.
     TCCR0B  = (0<<TSM)|(1<<PSR0)|(0<<CS02)|(0<<CS01)|(1<<CS00);
     
-    // set counter to 0x1f40 or 8000 counts this should give a 1ms interval  
-    OCR0B =0x1F;
+    // set counter to 0x1f40 or 8000 counts this should give a 1ms interval 
+    // set counter to 0x0320 for 800 counts -> 100uS interval
+    // set counter to 0x0640 for 1600 counts -> 200uS interval
+    OCR0B =0x06;
     OCR0A =0x40 ;
     
     timer_flag = 0 ;
@@ -170,6 +172,7 @@ void test_pins(void)
  
 }
 
+
 /** 
  * setup the incoming Serial interface ISR
  */
@@ -192,6 +195,7 @@ void init_serial_input(void)
     // enable global interuoptrs
     sei();
 }
+
 
 /** 
  * Serial input ISR
@@ -228,6 +232,7 @@ ISR(INT0_vect){
     }        
     
 }
+
 
 /**
  * Timer interrupt 
@@ -424,6 +429,8 @@ uint8_t reverse_byte (uint8_t byte ///< byte to reverse
 /**
  * Draw a single column of the screen
  *
+ * sends 4 bytes out to the SPI port to the display. takes approx 80uS for slow 
+ * speed operation if HW USI is used it is closer to 23uS
  */
 void draw_col(uint8_t column, ///< column to draw 0..15
               uint8_t upper_byte, ///< byte for upper half of column
@@ -449,23 +456,28 @@ void draw_col(uint8_t column, ///< column to draw 0..15
  * This will draw a single column of the current buffer to the screen. The 
  * column count will be incremented. 
  */
-void draw_screen(void)
+void update_screen(void)
 {
     static uint8_t i=0;
+    static uint8_t cnt =0;
     uint8_t j;
+    uint8_t k;
     
-//    for (i=0;i<(BUFFERSIZE>>1);i++)
-    if (i==(BUFFERSIZE>>1)){
-        i =0;
+    if (cnt++){
+        cnt=0;
+       draw_col(i,0,0);   
     }else{
-        i++;
-    }
-    
+        if (i==(BUFFERSIZE>>1)){
+            i =0;
+        }else{
+            i++;
+        }
+        
         j = buffer_index + (i<<1) ;
-        j &= BUFFERSIZE-1 ; // limit to  size of buffer
-        draw_col(i, buffer[j+0], buffer[j+1] );
-    
-    // draw_col(i,0,0);
+        j &= BUFFERSIZE-1 ; // limit to  size of buffer and roll any overflow
+        k  = j+1 &(BUFFERSIZE-1);// limit to  size of buffer and roll any overflow
+        draw_col(i, buffer[j], buffer[k] );
+    }
 }
 
 
@@ -488,8 +500,7 @@ void draw_screen_test(void)
             }else{
                 draw_col(i,0,0);
             }
-           
-            //      _delay_us(1);
+
         }
     }
 }
@@ -556,7 +567,6 @@ void insert_word_into_buffer(void)
  */
 int main(void)
 {
-     uint8_t i;
     //
     // Hardware Initialization 
     //
@@ -564,21 +574,16 @@ int main(void)
     init_usi();
     init_serial_input();
     init_timer0();
-    
-    for (i=0;i<32;i++){
-        buffer[i]=i+1;
-    }
     enable_output();
-   // disable_ouput();
-    
-    
+ 
     //
     // Main Loop
     //
-    for(;;)
+    for(;;){
+        // Is it time to update the screen?
         if (timer_flag){
             timer_flag = 0; // reset the timer flag 
-            draw_screen();  // draw a single coloumnn of the screen buffer
+            update_screen();  // draw a single coloumnn of the screen buffer
         }
  
         // have we got a new word?
