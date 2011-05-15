@@ -37,12 +37,12 @@ $Author$
 #include <inttypes.h>
 #include <util/delay.h>
 
-//#include "fontset0.h"
+#include "fontset0.h"
 
 
 // PORT A 
-#define SCLCK_OUT 0 ///< Serial clock ouput to next module
-#define SD_OUT    1 ///< Serial data ouput to next module
+#define SCLCK_OUT 0 ///< Serial clock output to next module
+#define SD_OUT    1 ///< Serial data output to next module
 #define SD_IN     2 ///< Serial data input from previous module 
 #define OE4       3 ///< Output enable 4th shift register
 #define OE3       4 ///< Output enable 3rd shift register
@@ -63,9 +63,10 @@ $Author$
 // For FAST USI
 #define USICLK_L  (1<<USIWM0)|(0<<USICS0)|(1<<USITC)
 #define USICLK_H  (1<<USIWM0)|(0<<USICS0)|(1<<USICLK)|(1<<USITC)
-#define HW_SPI 0  ///< set to 1 to use the fast inbuild USI interface 150x faster.
+#define HW_SPI 0  ///< set to 1 to use the fast inbuilt USI interface 150x faster.
 
-#define SOUT_DELAY_US 15 ///< us to wait in the clock cycle
+#define SOUT_DELAY_US 10 ///< us to wait in the clock cycle
+#define FRAME_RESET_TIMEOUT 25
 
 //debug macros
 #define DEBUG_TRIGGER PINB = (1<<DEBUG)
@@ -77,12 +78,12 @@ volatile uint16_t serial_in_buffer;
 volatile uint16_t serial_out_buffer;
 volatile uint8_t serial_in_index;
 volatile uint8_t sin_flag;
-//uint8_t screen_buffer[256]; ///< Screen buffer one byte per pixel.
+//uint8_t screen_buffer[256]; ///< Screen buffer one byte per pixel. // whoops only 128Bytes on a ATtiny261 need a Attiny861
 volatile uint8_t timer_flag; ///< flag to indicate the regulate timer has elapsed
-
+volatile uint16_t frame_timeout_counter=0; ///< counter how many timer periods have elepsed since last edge
 
 /**
- * Initalize the I/O pins 
+ * Initialise the I/O pins
  *
  */
 void init_pins (void)
@@ -103,7 +104,7 @@ void init_pins (void)
 
 
 /** 
- * Initialize the Timer
+ * Initialise the Timer
  *
  * The timer is timer0 and uses the 8Mhz system clock to provide a 50 Hz update 
  * rate for the screen.
@@ -135,9 +136,9 @@ void init_timer0(void)
 
 
 /**
- * Initalize the Serial bus
+ * Initialise the Serial bus
  *
- * The bus is used to talk to the shiftregisters. Once the 4 bytes have been 
+ * The bus is used to talk to the shift registers. Once the 4 bytes have been
  * clocked out with SCK they must be clocked through with a +ve edge on RCK
  * if the OE is low then they will appear on the outputs. The USI can be used to 
  * clock the data out quickly.
@@ -202,7 +203,7 @@ void init_serial_input(void)
  *
  * This is triggered when a new edge has been detected on the input serial clock 
  * line. The bit will be clocked into the current buffer once 16 bits have been 
- * recieved they will be move into the main buffer and the old bits clocked 
+ * Received they will be move into the main buffer and the old bits clocked
  * out the serial out interface.
  * This simultaneously clocks out old data 
  * MSB is first.
@@ -211,6 +212,10 @@ ISR(INT0_vect){
 
     // look for a rising edge
     if (PINB & (1<<SCLCK_IN)){ 
+	if (frame_timeout_counter >FRAME_RESET_TIMEOUT){
+		    serial_in_index = 16;
+		    serial_in_buffer = 0;
+	}
         serial_in_index--;
    
         // set bit in buffer
@@ -228,9 +233,8 @@ ISR(INT0_vect){
         }
     }else{ // A falling edge
         PORTA |= (1<<SCLCK_OUT);                   // set outgoing clock line
-
+        frame_timeout_counter=0;
     }        
-    
 }
 
 
@@ -506,10 +510,10 @@ void draw_screen_test(void)
 }
 
 
-/**
- * Simple scroling alphabet to test the screen
- */
-
+///**
+// * Simple scrolling alphabet to test the screen
+// */
+//
 //void test_fontSet0 (void)
 //{
 //    static uint16_t character=200;
@@ -517,24 +521,24 @@ void draw_screen_test(void)
 //
 //    uint8_t i ;
 //    // uint8_t i;
-//    
+//
 //    if (count++==50) {
 //        character--;
 //        count=0;
 //    }
-//    
+//
 //    for (i=0;i<16;i++){
 //        draw_col(i,pgm_read_byte(fontSet0+character+i),pgm_read_byte(fontSet0-character+i));
-////        _delay_ms(10);
+//	       _delay_ms(10);
 //    }
 //}
-//
+
 
 
 /**
  * Insert a word into the screen buffer
  *
- * Takes the last word recieved (serial_in_buffer) and puts it into the buffer
+ * Takes the last word received (serial_in_buffer) and puts it into the buffer
  * the index pointer is moved along by two bytes to account for the two new 
  * bytes in the the buffer.
  */
@@ -567,30 +571,39 @@ void insert_word_into_buffer(void)
  */
 int main(void)
 {
-    //
-    // Hardware Initialization 
-    //
-    init_pins();
-    init_usi();
-    init_serial_input();
-    init_timer0();
-    enable_output();
- 
-    //
-    // Main Loop
-    //
-    for(;;){
-        // Is it time to update the screen?
-        if (timer_flag){
-            timer_flag = 0; // reset the timer flag 
-            update_screen();  // draw a single coloumnn of the screen buffer
-        }
- 
-        // have we got a new word?
-        if (serial_in_index==0 ){
-            insert_word_into_buffer(); //save the word that just came in.
-        }
-    }
-    
-    return 0;   /* never reached */
+	uint8_t last_time_serialIndex=0;
+
+
+	//last_time_serialIndex
+	// Hardware Initialization
+	//
+	init_pins();
+	init_usi();
+	init_serial_input();
+	init_timer0();
+	enable_output();
+
+	//
+	// Main Loop
+	//
+	for(;;){
+
+		// Is it time to update the screen?
+		if (timer_flag){
+			timer_flag = 0;   // reset the timer flag
+			update_screen();  // draw a single coloumnn of the screen buffe
+			frame_timeout_counter++;
+		}
+
+		// have we got a new word?
+		if (serial_in_index==0 ){
+			insert_word_into_buffer(); //save the word that just came in.
+		}
+
+
+
+		last_time_serialIndex = serial_in_index;
+	}
+
+	return 0;   /* never reached */
 }
