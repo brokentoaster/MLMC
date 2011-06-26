@@ -1,55 +1,19 @@
 // !$*UTF8*$!
 {
-	013811B51063E61500052134 /* PBXTextBookmark */ = {
-		isa = PBXTextBookmark;
-		fRef = 4079525E0CEA38CC00E202DC /* main.c */;
-		name = "main.c: 148";
-		rLen = 0;
-		rLoc = 4725;
-		rType = 0;
-		vrLen = 1073;
-		vrLoc = 5689;
-	};
 	0148849F102C950000B3A936 /* Source Control */ = {
 		isa = PBXSourceControlManager;
 		fallbackIsa = XCSourceControlManager;
 		isSCMEnabled = 0;
 		scmConfiguration = {
 			repositoryName = "Mini Perforce";
+			repositoryNamesForRoots = {
+				"" = "Mini Perforce";
+			};
 		};
 	};
 	014884A0102C950000B3A936 /* Code sense */ = {
 		isa = PBXCodeSenseManager;
 		indexTemplatePath = "";
-	};
-	01488511102D84A800B3A936 /* main.c */ = {
-		isa = PBXFileReference;
-		lastKnownFileType = sourcecode.c.c;
-		name = main.c;
-		path = /Users/nick/Perforce/mini_1666/nick_MacBook/LED_Matrix_Module/firmware/main.c;
-		sourceTree = "<absolute>";
-		uiCtxt = {
-			sepNavIntBoundsRect = "{{0, 0}, {1012, 9552}}";
-			sepNavSelRange = "{4725, 0}";
-			sepNavVisRange = "{5689, 1073}";
-		};
-	};
-	01766C6F103B1D7900CEAE5B /* PBXTextBookmark */ = {
-		isa = PBXTextBookmark;
-		fRef = 01766C70103B1D7900CEAE5B /* Timer.asm */;
-		name = "Timer.asm: 202";
-		rLen = 0;
-		rLoc = 5747;
-		rType = 0;
-		vrLen = 864;
-		vrLoc = 5655;
-	};
-	01766C70103B1D7900CEAE5B /* Timer.asm */ = {
-		isa = PBXFileReference;
-		lastKnownFileType = sourcecode.asm.asm;
-		name = Timer.asm;
-		path = "/Users/nick/Documents/Electronics/Old Projects/CC Entries AVR 2006/AT3222_Teachers Timer/Source/Timer.asm";
-		sourceTree = "<absolute>";
 	};
 	01766C77103B1D7900CEAE5B /* Timer.asm */ = {
 		isa = PBXFileReference;
@@ -66,16 +30,6 @@
 		rLoc = 81;
 		rType = 0;
 		vrLen = 1024;
-		vrLoc = 0;
-	};
-	01766CAF103B3A0800CEAE5B /* PBXTextBookmark */ = {
-		isa = PBXTextBookmark;
-		fRef = 4079525F0CEA38CC00E202DC /* Makefile */;
-		name = "Makefile: 47";
-		rLen = 0;
-		rLoc = 2109;
-		rType = 0;
-		vrLen = 1049;
 		vrLoc = 0;
 	};
 	01A6FA73102DA3170093ED38 /* PBXTextBookmark */ = {
@@ -102,31 +56,11 @@
 		path = "/Users/nick/Documents/Electronics/ATMEL/m16 Matrix/m16_reader.c";
 		sourceTree = "<absolute>";
 	};
-	01C08FAD104C71F2001FD56B /* PBXTextBookmark */ = {
-		isa = PBXTextBookmark;
-		fRef = 01F5AD05102F755D00D832A0 /* font_ttuf2.h */;
-		name = "font_ttuf2.h: 1";
-		rLen = 0;
-		rLoc = 0;
-		rType = 0;
-		vrLen = 1269;
-		vrLoc = 0;
-	};
-	01C08FB0104C71F2001FD56B /* PBXTextBookmark */ = {
-		isa = PBXTextBookmark;
-		fRef = 4079525E0CEA38CC00E202DC /* main.c */;
-		name = "main.c: 236";
-		rLen = 0;
-		rLoc = 6757;
-		rType = 0;
-		vrLen = 911;
-		vrLoc = 8270;
-	};
 	01F5AD05102F755D00D832A0 /* font_ttuf2.h */ = {
 		uiCtxt = {
-			sepNavIntBoundsRect = "{{0, 0}, {1012, 1296}}";
+			sepNavIntBoundsRect = "{{0, 0}, {970, 1106}}";
 			sepNavSelRange = "{0, 0}";
-			sepNavVisRange = "{0, 1269}";
+			sepNavVisRange = "{0, 1409}";
 		};
 	};
 	01F5AD06102F755D00D832A0 /* fontset0.h */ = {
@@ -143,47 +77,7 @@
 			sepNavVisRange = "{0, 1191}";
 		};
 	};
-	01F5AD28102F79F400D832A0 /* PBXTextBookmark */ = {
-		isa = PBXTextBookmark;
-		fRef = 01488511102D84A800B3A936 /* main.c */;
-		name = "main.c: 295";
-		rLen = 0;
-		rLoc = 13179;
-		rType = 0;
-		vrLen = 745;
-		vrLoc = 7343;
-	};
-	01F5AD29102F79F400D832A0 /* PBXTextBookmark */ = {
-		isa = PBXTextBookmark;
-		fRef = 01F5AD06102F755D00D832A0 /* fontset0.h */;
-		name = "fontset0.h: 1";
-		rLen = 0;
-		rLoc = 0;
-		rType = 0;
-		vrLen = 1416;
-		vrLoc = 0;
-	};
-	01F5AD2A102F79F400D832A0 /* PBXTextBookmark */ = {
-		isa = PBXTextBookmark;
-		fRef = 4079525F0CEA38CC00E202DC /* Makefile */;
-		name = "Makefile: 18";
-		rLen = 0;
-		rLoc = 810;
-		rType = 0;
-		vrLen = 1799;
-		vrLoc = 310;
-	};
 	01F5AD32102F7AA900D832A0 /* PBXTextBookmark */ = {
-		isa = PBXTextBookmark;
-		fRef = 01A6FB32102F711B0093ED38 /* m16_reader.c */;
-		name = "m16_reader.c: 285";
-		rLen = 33;
-		rLoc = 4675;
-		rType = 0;
-		vrLen = 638;
-		vrLoc = 4142;
-	};
-	01F5AD35102F7AA900D832A0 /* PBXTextBookmark */ = {
 		isa = PBXTextBookmark;
 		fRef = 01A6FB32102F711B0093ED38 /* m16_reader.c */;
 		name = "m16_reader.c: 285";
@@ -213,25 +107,45 @@
 		vrLen = 1191;
 		vrLoc = 0;
 	};
-	01F5AD5A1031D5BE00D832A0 /* PBXTextBookmark */ = {
-		isa = PBXTextBookmark;
-		fRef = 01F5AD07102F755D00D832A0 /* font_ttuf1.h */;
-		name = "font_ttuf1.h: 1";
-		rLen = 0;
-		rLoc = 0;
-		rType = 0;
-		vrLen = 1191;
-		vrLoc = 0;
-	};
-	01F5AD5C1031D5BE00D832A0 /* PBXTextBookmark */ = {
+	01F7589613807E130040304D /* PBXTextBookmark */ = {
 		isa = PBXTextBookmark;
 		fRef = 01F5AD05102F755D00D832A0 /* font_ttuf2.h */;
 		name = "font_ttuf2.h: 1";
 		rLen = 0;
 		rLoc = 0;
 		rType = 0;
-		vrLen = 1269;
+		vrLen = 1409;
 		vrLoc = 0;
+	};
+	01F7589713807E130040304D /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 4079525F0CEA38CC00E202DC /* Makefile */;
+		name = "Makefile: 47";
+		rLen = 0;
+		rLoc = 2109;
+		rType = 0;
+		vrLen = 1861;
+		vrLoc = 0;
+	};
+	01F7589813807E130040304D /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 4079525E0CEA38CC00E202DC /* main.c */;
+		name = "main.c: 89";
+		rLen = 0;
+		rLoc = 2976;
+		rType = 0;
+		vrLen = 1483;
+		vrLoc = 2467;
+	};
+	01F7589A138188820040304D /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = 4079525E0CEA38CC00E202DC /* main.c */;
+		name = "main.c: 21";
+		rLen = 0;
+		rLoc = 734;
+		rType = 0;
+		vrLen = 1991;
+		vrLoc = 957;
 	};
 	4079523D0CEA382200E202DC /* Project object */ = {
 		activeBuildConfigurationName = Release;
@@ -276,7 +190,7 @@
 				PBXFileTableDataSourceColumnSortingKey = PBXFileDataSource_Filename_ColumnID;
 				PBXFileTableDataSourceColumnWidthsKey = (
 					20,
-					834,
+					10,
 					20,
 					48,
 					43,
@@ -315,26 +229,19 @@
 					PBXFileDataSource_Warnings_ColumnID,
 				);
 			};
-			PBXPerProjectTemplateStateSaveDate = 274971490;
-			PBXWorkspaceStateSaveDate = 274971490;
+			PBXPerProjectTemplateStateSaveDate = 327093866;
+			PBXWorkspaceStateSaveDate = 327093866;
 		};
 		perUserProjectItems = {
-			013811B51063E61500052134 /* PBXTextBookmark */ = 013811B51063E61500052134 /* PBXTextBookmark */;
-			01766C6F103B1D7900CEAE5B /* PBXTextBookmark */ = 01766C6F103B1D7900CEAE5B /* PBXTextBookmark */;
 			01766C8B103B1F0700CEAE5B /* PBXTextBookmark */ = 01766C8B103B1F0700CEAE5B /* PBXTextBookmark */;
-			01766CAF103B3A0800CEAE5B /* PBXTextBookmark */ = 01766CAF103B3A0800CEAE5B /* PBXTextBookmark */;
 			01A6FA73102DA3170093ED38 /* PBXTextBookmark */ = 01A6FA73102DA3170093ED38 /* PBXTextBookmark */;
-			01C08FAD104C71F2001FD56B /* PBXTextBookmark */ = 01C08FAD104C71F2001FD56B /* PBXTextBookmark */;
-			01C08FB0104C71F2001FD56B /* PBXTextBookmark */ = 01C08FB0104C71F2001FD56B /* PBXTextBookmark */;
-			01F5AD28102F79F400D832A0 /* PBXTextBookmark */ = 01F5AD28102F79F400D832A0 /* PBXTextBookmark */;
-			01F5AD29102F79F400D832A0 /* PBXTextBookmark */ = 01F5AD29102F79F400D832A0 /* PBXTextBookmark */;
-			01F5AD2A102F79F400D832A0 /* PBXTextBookmark */ = 01F5AD2A102F79F400D832A0 /* PBXTextBookmark */;
 			01F5AD32102F7AA900D832A0 /* PBXTextBookmark */ = 01F5AD32102F7AA900D832A0 /* PBXTextBookmark */;
-			01F5AD35102F7AA900D832A0 /* PBXTextBookmark */ = 01F5AD35102F7AA900D832A0 /* PBXTextBookmark */;
 			01F5AD531031D5BE00D832A0 /* PBXTextBookmark */ = 01F5AD531031D5BE00D832A0 /* PBXTextBookmark */;
 			01F5AD551031D5BE00D832A0 /* PBXTextBookmark */ = 01F5AD551031D5BE00D832A0 /* PBXTextBookmark */;
-			01F5AD5A1031D5BE00D832A0 /* PBXTextBookmark */ = 01F5AD5A1031D5BE00D832A0 /* PBXTextBookmark */;
-			01F5AD5C1031D5BE00D832A0 /* PBXTextBookmark */ = 01F5AD5C1031D5BE00D832A0 /* PBXTextBookmark */;
+			01F7589613807E130040304D /* PBXTextBookmark */ = 01F7589613807E130040304D /* PBXTextBookmark */;
+			01F7589713807E130040304D /* PBXTextBookmark */ = 01F7589713807E130040304D /* PBXTextBookmark */;
+			01F7589813807E130040304D /* PBXTextBookmark */ = 01F7589813807E130040304D /* PBXTextBookmark */;
+			01F7589A138188820040304D /* PBXTextBookmark */ = 01F7589A138188820040304D /* PBXTextBookmark */;
 		};
 		sourceControlManager = 0148849F102C950000B3A936 /* Source Control */;
 		userBuildSettings = {
@@ -342,16 +249,16 @@
 	};
 	4079525E0CEA38CC00E202DC /* main.c */ = {
 		uiCtxt = {
-			sepNavIntBoundsRect = "{{0, 0}, {1012, 9552}}";
-			sepNavSelRange = "{4725, 0}";
-			sepNavVisRange = "{5689, 1073}";
+			sepNavIntBoundsRect = "{{0, 0}, {970, 8526}}";
+			sepNavSelRange = "{734, 0}";
+			sepNavVisRange = "{957, 1991}";
 		};
 	};
 	4079525F0CEA38CC00E202DC /* Makefile */ = {
 		uiCtxt = {
-			sepNavIntBoundsRect = "{{0, 0}, {1012, 1616}}";
+			sepNavIntBoundsRect = "{{0, 0}, {970, 1316}}";
 			sepNavSelRange = "{2109, 0}";
-			sepNavVisRange = "{0, 1049}";
+			sepNavVisRange = "{0, 1861}";
 		};
 	};
 	407952600CEA391500E202DC /* firmware */ = {

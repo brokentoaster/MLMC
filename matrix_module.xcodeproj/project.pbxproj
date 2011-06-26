@@ -58,7 +58,14 @@
 			isa = PBXProject;
 			buildConfigurationList = 4079523E0CEA382200E202DC /* Build configuration list for PBXProject "matrix_module" */;
 			compatibilityVersion = "Xcode 3.1";
+			developmentRegion = English;
 			hasScannedForEncodings = 0;
+			knownRegions = (
+				English,
+				Japanese,
+				French,
+				German,
+			);
 			mainGroup = 4079523B0CEA382200E202DC;
 			projectDirPath = "";
 			projectRoot = "";
