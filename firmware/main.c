@@ -66,21 +66,30 @@ $Author$
 #define HW_SPI 0  ///< set to 1 to use the fast inbuilt USI interface 150x faster.
 
 #define SOUT_DELAY_US 10 ///< us to wait in the clock cycle
-#define FRAME_RESET_TIMEOUT 25
+
+#define FRAME_RESET_TIMEOUT 50 ///< number of screen refresh frames to wait before reseting serial interface
+							   // This calculates to 20mS if refresh timer is running at 2.5kHz
 
 //debug macros
+/// Toggle the DEBUGPIN on port B
+/// From page 55 of datasheet for ATTiny261 (2588E–AVR–08/10)
+/// "writing a logic one to a bit in the PINx Register, will result in a toggle in the corresponding
+/// bit in the Data Register"
 #define DEBUG_TRIGGER PINB = (1<<DEBUG)
 
-#define BUFFERSIZE 32  ///< Size of ring buffer should be a power of 2
-volatile uint8_t buffer[BUFFERSIZE]; ///< Buffer to contain the 256 bits on the screen.
-volatile uint8_t buffer_index; ///< pointer to current start of buffer.
-volatile uint16_t serial_in_buffer;
-volatile uint16_t serial_out_buffer;
-volatile uint8_t serial_in_index;
-volatile uint8_t sin_flag;
-//uint8_t screen_buffer[256]; ///< Screen buffer one byte per pixel. // whoops only 128Bytes on a ATtiny261 need a Attiny861
-volatile uint8_t timer_flag; ///< flag to indicate the regulate timer has elapsed
-volatile uint16_t frame_timeout_counter=0; ///< counter how many timer periods have elepsed since last edge
+
+#define BUFFERSIZE 32  				 		///< Size of ring buffer should be a power of 2
+volatile uint8_t buffer[BUFFERSIZE]; 		///< Buffer to contain the 256 bits on the screen.
+volatile uint8_t buffer_index;       		///< pointer to current start of buffer.
+volatile uint16_t serial_in_buffer;  		///< buffer for next word currently being clocked in
+volatile uint16_t serial_out_buffer; 		///< buffer for last word currently being clocked out
+volatile uint8_t serial_in_index;    		///< bit of word currently being clocked in or out of the module
+// volatile uint8_t sin_flag;
+//uint8_t screen_buffer[256];		 		 ///< Screen buffer one byte per pixel. // whoops only 128Bytes on a ATtiny261 need a Attiny861
+volatile uint8_t timer_flag; 		 	 	 ///< flag to indicate the regular refresh timer has elapsed
+volatile uint16_t frame_timeout_counter=0; 	 ///< counter how many timer periods have elapsed since last edge
+volatile uint8_t serial_in_buffer_full_flag; ///< flag to indicate a word has been received on input
+
 
 /**
  * Initialise the I/O pins
@@ -91,7 +100,7 @@ void init_pins (void)
     PORTA = 0x00; // Set Port A to off / High Z
     PORTB = 0x00; // Set port B to off / High Z
     
-    // set Ouptut enables and clear pins High (active low)
+    // set shiftregister output-enable and clear pins High (active low)
     PORTA = (0<<SCLCK_OUT)|(0<<SD_OUT)|(0<<SD_IN)|(1<<OE4)|(1<<OE3)|(1<<OE2)|(0<<RCK)|(1<<SCL);
     PORTB = (0<<SCLCK_IN)|(1<<OE1)|(0<<SCK)|(0<<MISO)|(0<<SERIAL)|(1<<DEBUG);
     
@@ -127,13 +136,13 @@ void init_timer0(void)
     // set counter to 0x1f40 or 8000 counts this should give a 1ms interval 
     // set counter to 0x0320 for 800 counts -> 100uS interval
     // set counter to 0x0640 for 1600 counts -> 200uS interval
-    OCR0B =0x06;
-    OCR0A =0x40 ;
+    // set counter to 0x0C80 for 3200 counts -> 400uS interval (2.5Khz /16  => 156H.25Hz Refresh
+    OCR0B =0x0c;
+    OCR0A =0x80 ;
     
     timer_flag = 0 ;
     
 }
-
 
 /**
  * Initialise the Serial bus
@@ -153,7 +162,7 @@ void init_usi(void)
 /** 
  * Test the basic operation of the pins
  *
- * This will send some pre arranged signals onthe pins to check the PCB is in 
+ * This will send some predetermined signals on the pins to check the PCB is in
  * designed as expected by the software.
  *
  */
@@ -183,17 +192,17 @@ void init_serial_input(void)
     serial_in_buffer = 0;
     buffer_index =0;
     
-    // rising edge generates an interupt 
+    // rising edge generates an interrupt
   //  MCUCR |= (1<<ISC01)|(1<<ISC00);
     
-    // any edge generates an interupt 
+    // any edge generates an interrupt
     MCUCR |= (0<<ISC01)|(1<<ISC00);
     
     
     // INT0 only
     GIMSK = (0<<INT1)|(1<<INT0)|(0<<PCIE1)|(0<<PCIE0);
     
-    // enable global interuoptrs
+    // enable global interrupts
     sei();
 }
 
@@ -207,49 +216,60 @@ void init_serial_input(void)
  * out the serial out interface.
  * This simultaneously clocks out old data 
  * MSB is first.
+ *
+ * This ISR takes 12-15us on a rising edge while serial_in_index>2
+ * On last rising edge the ISR takes 24us
+ * Falling edges take 1.4us to complete
+ * There is a delay of 3.6us to enter the ISR
  */
 ISR(INT0_vect){
-
+	//cli();
+	//DEBUG_TRIGGER;
     // look for a rising edge
     if (PINB & (1<<SCLCK_IN)){ 
-	if (frame_timeout_counter >FRAME_RESET_TIMEOUT){
-		    serial_in_index = 16;
-		    serial_in_buffer = 0;
-	}
-        serial_in_index--;
-   
-        // set bit in buffer
-        if (PINA & (1<< SD_IN) ){ 
-            serial_in_buffer |= (1<<serial_in_index);
-        }
-        
-        PORTA &= ~( (1<<SCLCK_OUT));  // clear clock  
-        
-        // set/clear bit on outgoing serial
-        if (serial_out_buffer & (1<<serial_in_index)){
-            PORTA |= (1<<SD_OUT);                  // set data bit
-        }else{
-            PORTA &= ~(1<<SD_OUT);                 // clear data bit
-        }
+    	if(serial_in_buffer_full_flag == 0){
+			serial_in_index--;
+
+			// set bit in buffer
+			if (PINA & (1<< SD_IN) ){
+				serial_in_buffer |= (1<<serial_in_index);
+			}
+
+			PORTA &= ~( (1<<SCLCK_OUT));  // clear clock
+
+			// set/clear bit on outgoing serial
+			if (serial_out_buffer & (1<<serial_in_index)){
+				PORTA |= (1<<SD_OUT);                  // set data bit
+			}else{
+				PORTA &= ~(1<<SD_OUT);                 // clear data bit
+			}
+			// set the flag if the buffer is full.
+			if (serial_in_index == 0){
+				serial_in_buffer_full_flag = 1;
+			}
+    	}
     }else{ // A falling edge
         PORTA |= (1<<SCLCK_OUT);                   // set outgoing clock line
         frame_timeout_counter=0;
     }        
+    //DEBUG_TRIGGER;
 }
 
 
 /**
  * Timer interrupt 
  *
- * This is use to update the screen periorically.
+ * This is use to update the screen periodically.
+ * This ISR takes 768ns between debug triggers
+ * Frequency is ~ 4.8Khz (208us period)
  */
 ISR(TIMER0_COMPA_vect)
 {
-    DEBUG_TRIGGER;
+//    DEBUG_TRIGGER;
     TCNT0H=0;
     TCNT0L=0;
     timer_flag=1;
-    DEBUG_TRIGGER;
+//    DEBUG_TRIGGER;
 }
 
 
@@ -280,7 +300,7 @@ void Send_byte_next_module( uint8_t data ///< 8 bit data to be sent
             PORTA &= ~(1<<SD_OUT);                 // clear data bit
         }
         PORTA |= (1<<SCLCK_OUT);                   // set clock line
-        temp <<= 1;                                // shift allong by one
+        temp <<= 1;                                // shift along by one
         _delay_us(SOUT_DELAY_US); 
         
     }
@@ -334,7 +354,7 @@ void usi_send_byte(uint8_t data ///< 8 bit data to be sent
         }
         
         PORTB |= (1<<SCK);                   // set clock line
-        temp <<= 1;                          // shift allong by one
+        temp <<= 1;                          // shift along by one
     }
     PORTB &= ~( (1<<SCK)|(1<<SERIAL) );      // clear clock and data line
     
@@ -353,7 +373,7 @@ void enable_output( void )
 }
 
 /**
- * Disable the output from the shiftregisters
+ * Disable the output from the shift registers
  */
 void disable_ouput(void)
 {
@@ -365,19 +385,19 @@ void disable_ouput(void)
  * Shift the data to the ouputs of the shift registers
  *
  * Cycle the RCK (register clock) on the shift register to latch the data 
- * from the data register to the actual ouputs
+ * from the data register to the actual outputs
  */
 void clock_new_ouput(void)
 {
-    PINA = (1<<RCK); // Toge this pin 0 ->1  
-    PINA = (1<<RCK); // Toge this pin 1->0  
+    PINA = (1<<RCK); // Toggle this pin 0 ->1
+    PINA = (1<<RCK); // Toggle this pin 1->0
 }
 
 /**
  * Display a test pattern on the screen.
  *
  * This will display a test pattern on the screen to ensure that all of the LEDs
- * are operating nirmally.
+ * are operating normally.
  */
 void test_all_LEDs(void)
 {
@@ -544,12 +564,14 @@ void draw_screen_test(void)
  */
 void insert_word_into_buffer(void)
 {
-    // send out last items in buffer
-    serial_out_buffer = buffer[((buffer_index+0)&(BUFFERSIZE-1))]<<8;
-    serial_out_buffer += buffer[((buffer_index+1)&(BUFFERSIZE-1))];
+
+
+    // send out second to last items in buffer
+    serial_out_buffer = buffer[((buffer_index+2)&(BUFFERSIZE-1))]<<8;
+    serial_out_buffer += buffer[((buffer_index+3)&(BUFFERSIZE-1))];
     
-    // replace with new bytes
-    buffer[((buffer_index+0)&(BUFFERSIZE-1))] = serial_in_buffer>>8;
+    // replace last items in buffer with new bytes
+    buffer[((buffer_index+0)&(BUFFERSIZE-1))] = serial_in_buffer >>8;
     buffer[((buffer_index+1)&(BUFFERSIZE-1))] = serial_in_buffer & 0xff;
     
     //shift screen buffer index
@@ -561,7 +583,8 @@ void insert_word_into_buffer(void)
     
     // reset the input buffer for next word.
     serial_in_buffer =0;
-    serial_in_index =16;    
+    serial_in_index =16;
+    serial_in_buffer_full_flag =0;
 }
 
 
@@ -575,7 +598,7 @@ int main(void)
 
 
 	//last_time_serialIndex
-	// Hardware Initialization
+	// Hardware Initialisation
 	//
 	init_pins();
 	init_usi();
@@ -591,12 +614,26 @@ int main(void)
 		// Is it time to update the screen?
 		if (timer_flag){
 			timer_flag = 0;   // reset the timer flag
-			update_screen();  // draw a single coloumnn of the screen buffe
-			frame_timeout_counter++;
-		}
+			update_screen();  // draw a single column of the screen buffer
 
+			if (frame_timeout_counter++ >FRAME_RESET_TIMEOUT){
+				serial_in_buffer_full_flag =0; 	// open the buffer again
+				serial_in_index = 16;      		// reset buffer word bit pointer
+				serial_in_buffer = 0x0000; 		// clear buffer word
+				frame_timeout_counter=0;
+
+//				serial_in_index--; /// Simulate accidental clock signal
+
+//				serial_in_buffer_full_flag =1;
+//				serial_in_index = 16; // reset buffer word bit pointer
+//				serial_in_buffer = 0x5555; //clear buffer word
+			}
+
+		}
+		//serial_in_index = 16; // reset buffer word bit pointer
+		//serial_in_buffer = 0; //clear buffer word
 		// have we got a new word?
-		if (serial_in_index==0 ){
+		if (serial_in_buffer_full_flag == 1){
 			insert_word_into_buffer(); //save the word that just came in.
 		}
 
