@@ -69,6 +69,8 @@ $Author$
 
 #define FRAME_RESET_TIMEOUT 50 ///< number of screen refresh frames to wait before reseting serial interface
 							   // This calculates to 20mS if refresh timer is running at 2.5kHz
+#define LAST_BIT_CLOCK_TIME 1  ///< number of screen refresh frames to wait before clocking out the last bit
+							   // This should be 400us if refresh timer is running at 2.5kHz
 
 //debug macros
 /// Toggle the DEBUGPIN on port B
@@ -86,10 +88,19 @@ volatile uint16_t serial_out_buffer; 		///< buffer for last word currently being
 volatile uint8_t serial_in_index;    		///< bit of word currently being clocked in or out of the module
 // volatile uint8_t sin_flag;
 //uint8_t screen_buffer[256];		 		 ///< Screen buffer one byte per pixel. // whoops only 128Bytes on a ATtiny261 need a Attiny861
-volatile uint8_t timer_flag; 		 	 	 ///< flag to indicate the regular refresh timer has elapsed
-volatile uint16_t frame_timeout_counter=0; 	 ///< counter how many timer periods have elapsed since last edge
-volatile uint8_t serial_in_buffer_full_flag; ///< flag to indicate a word has been received on input
+//volatile uint8_t timer_flag;
+volatile uint16_t time_since_last_bit=0; 	 ///< counter how many timer periods have elapsed since last edge
+//volatile uint8_t serial_in_buffer_full_flag; /
 
+volatile uint8_t global_flags;				///< global variable for flags
+#define FLAG_TIMER 			0 				///< flag to indicate the regular refresh timer has elapsed
+#define FLAG_BUFFER_FULL 	1 				///< flag to indicate a word has been received on input
+#define FLAG_LAST_BIT 		2				///< flag to indicate last bit needs to be clocked out
+
+#define CLEAR_FLAG(b) 		( global_flags &= ~(1<<b))
+#define SET_FLAG(b)			( global_flags |= (1<<b))
+#define FLAG_IS_SET(b)		( global_flags & (1<<b))
+#define FLAG_IS_CLEAR(b) 	(( global_flags & (1<<b))==0 )
 
 /**
  * Initialise the I/O pins
@@ -100,7 +111,7 @@ void init_pins (void)
     PORTA = 0x00; // Set Port A to off / High Z
     PORTB = 0x00; // Set port B to off / High Z
     
-    // set shiftregister output-enable and clear pins High (active low)
+    // set shift register output-enable and clear pins High (active low)
     PORTA = (0<<SCLCK_OUT)|(0<<SD_OUT)|(0<<SD_IN)|(1<<OE4)|(1<<OE3)|(1<<OE2)|(0<<RCK)|(1<<SCL);
     PORTB = (0<<SCLCK_IN)|(1<<OE1)|(0<<SCK)|(0<<MISO)|(0<<SERIAL)|(1<<DEBUG);
     
@@ -120,7 +131,6 @@ void init_pins (void)
  */
 void init_timer0(void)
 {
-    
     // Timer Counter 0 control register A
     // 16 bit mode
     TCCR0A = (1<<TCW0)|(0<<ICEN0)|(0<<ICNC0)|(0<<ICES0)| (0<<ACIC0)|(0<<WGM00);
@@ -140,7 +150,9 @@ void init_timer0(void)
     OCR0B =0x0c;
     OCR0A =0x80 ;
     
-    timer_flag = 0 ;
+    CLEAR_FLAG(FLAG_TIMER);
+    //global_flags &= ~(1<<FLAG_TIMER);
+    //timer_flag = 0 ;
     
 }
 
@@ -227,7 +239,7 @@ ISR(INT0_vect){
 	//DEBUG_TRIGGER;
     // look for a rising edge
     if (PINB & (1<<SCLCK_IN)){ 
-    	if(serial_in_buffer_full_flag == 0){
+    	if( FLAG_IS_CLEAR(FLAG_BUFFER_FULL) ){
 			serial_in_index--;
 
 			// set bit in buffer
@@ -245,12 +257,14 @@ ISR(INT0_vect){
 			}
 			// set the flag if the buffer is full.
 			if (serial_in_index == 0){
-				serial_in_buffer_full_flag = 1;
+				//serial_in_buffer_full_flag = 1;
+				SET_FLAG(FLAG_BUFFER_FULL);
 			}
     	}
     }else{ // A falling edge
         PORTA |= (1<<SCLCK_OUT);                   // set outgoing clock line
-        frame_timeout_counter=0;
+        time_since_last_bit=0;							// reset our inter frame timer
+      //  SET_FLAG(FLAG_LAST_BIT);
     }        
     //DEBUG_TRIGGER;
 }
@@ -268,7 +282,8 @@ ISR(TIMER0_COMPA_vect)
 //    DEBUG_TRIGGER;
     TCNT0H=0;
     TCNT0L=0;
-    timer_flag=1;
+    SET_FLAG(FLAG_TIMER);
+//    timer_flag=1;
 //    DEBUG_TRIGGER;
 }
 
@@ -564,8 +579,6 @@ void draw_screen_test(void)
  */
 void insert_word_into_buffer(void)
 {
-
-
     // send out second to last items in buffer
     serial_out_buffer = buffer[((buffer_index+2)&(BUFFERSIZE-1))]<<8;
     serial_out_buffer += buffer[((buffer_index+3)&(BUFFERSIZE-1))];
@@ -584,7 +597,7 @@ void insert_word_into_buffer(void)
     // reset the input buffer for next word.
     serial_in_buffer =0;
     serial_in_index =16;
-    serial_in_buffer_full_flag =0;
+    CLEAR_FLAG(FLAG_BUFFER_FULL);
 }
 
 
@@ -594,10 +607,6 @@ void insert_word_into_buffer(void)
  */
 int main(void)
 {
-	uint8_t last_time_serialIndex=0;
-
-
-	//last_time_serialIndex
 	// Hardware Initialisation
 	//
 	init_pins();
@@ -612,34 +621,41 @@ int main(void)
 	for(;;){
 
 		// Is it time to update the screen?
-		if (timer_flag){
-			timer_flag = 0;   // reset the timer flag
-			update_screen();  // draw a single column of the screen buffer
+		//
+		if (FLAG_IS_SET(FLAG_TIMER)){
+			CLEAR_FLAG(FLAG_TIMER);   // reset the timer flag
+			update_screen();  		  // draw a single column of the screen buffer
 
-			if (frame_timeout_counter++ >FRAME_RESET_TIMEOUT){
-				serial_in_buffer_full_flag =0; 	// open the buffer again
-				serial_in_index = 16;      		// reset buffer word bit pointer
-				serial_in_buffer = 0x0000; 		// clear buffer word
-				frame_timeout_counter=0;
+			// Do some other house keeping after updating the screen.
+			//
+			time_since_last_bit++;  // increment our refresh timer/counter (2.5khz)
 
-//				serial_in_index--; /// Simulate accidental clock signal
-
-//				serial_in_buffer_full_flag =1;
-//				serial_in_index = 16; // reset buffer word bit pointer
-//				serial_in_buffer = 0x5555; //clear buffer word
+			// ensure the last bit is clocked out properly if no further bits are sent
+			// within <LAST_BIT_CLOCK_TIME>+1 periods. NOTE: last clock width will be variable
+//			if (FLAG_IS_SET(FLAG_LAST_BIT) && (time_since_last_bit > LAST_BIT_CLOCK_TIME)){
+			if ((time_since_last_bit > LAST_BIT_CLOCK_TIME)){
+						PORTA &= ~( (1<<SCLCK_OUT));  // clear clock
+			//			CLEAR_FLAG(FLAG_LAST_BIT);
 			}
 
+			// this is to abort the buffer if we have received a partial word but
+			// no clocks for some time. This should mean that the screens will
+			// synchronise if no data is received for some time.
+			// It should also make the system more robust should spurious clocks
+			// be received due to noise.
+			if (time_since_last_bit > FRAME_RESET_TIMEOUT){
+				CLEAR_FLAG(FLAG_BUFFER_FULL); 	// open the buffer again
+				serial_in_index = 16;      		// reset buffer word bit pointer
+				serial_in_buffer = 0x0000; 		// clear buffer word
+				time_since_last_bit=0;
+			}
 		}
-		//serial_in_index = 16; // reset buffer word bit pointer
-		//serial_in_buffer = 0; //clear buffer word
+
 		// have we got a new word?
-		if (serial_in_buffer_full_flag == 1){
+		//
+		if (FLAG_IS_SET(FLAG_BUFFER_FULL)){
 			insert_word_into_buffer(); //save the word that just came in.
 		}
-
-
-
-		last_time_serialIndex = serial_in_index;
 	}
 
 	return 0;   /* never reached */
