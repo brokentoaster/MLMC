@@ -1,3 +1,24 @@
-#Sat May 14 17:56:55 BST 2011
+#Sat Oct 01 15:28:49 BST 2011
+avrtarget/ClockFrequency=1000000
+avrtarget/ExtRAMSize=0
+avrtarget/ExtendedRAM=false
+avrtarget/MCUType=attiny261
+avrtarget/UseEEPROM=false
+avrtarget/UseExtendedRAMforHeap=true
+avrtarget/avrdude/BitBangDelay=
+avrtarget/avrdude/Bitclock=
+avrtarget/avrdude/EEPROMFile=
+avrtarget/avrdude/EEPROMFromConfig=true
+avrtarget/avrdude/FlashFile=${workspace_loc\:/mlmc/main.hex}
+avrtarget/avrdude/FlashFromConfig=false
+avrtarget/avrdude/NoChipErase=false
+avrtarget/avrdude/NoSigCheck=false
+avrtarget/avrdude/NoVerify=false
+avrtarget/avrdude/NoWrite=false
+avrtarget/avrdude/OtherOptions=
+avrtarget/avrdude/ProgrammerID=programmerconfig.1
+avrtarget/avrdude/UseCounter=false
+avrtarget/avrdude/WriteEEPROM=false
+avrtarget/avrdude/WriteFlash=true
 avrtarget/perConfig=false
 eclipse.preferences.version=1

@@ -36,6 +36,7 @@ $Author$
 #include <avr/interrupt.h>
 #include <inttypes.h>
 #include <util/delay.h>
+ #include <avr/sleep.h>
 
 #include "fontset0.h"
 
@@ -67,9 +68,9 @@ $Author$
 
 #define SOUT_DELAY_US 10        ///< us to wait in the clock cycle
 
-#define FRAME_RESET_TIMEOUT 50 ///< number of screen refresh frames to wait before reseting serial interface
+#define FRAME_RESET_TIMEOUT 100 ///< number of screen refresh frames to wait before reseting serial interface
 							   ///< This calculates to 20mS if refresh timer is running at 2.5kHz
-#define LAST_BIT_CLOCK_TIME 1  ///< number of screen refresh frames to wait before clocking out the last bit
+#define LAST_BIT_CLOCK_TIME 2  ///< number of screen refresh frames to wait before clocking out the last bit
 							   ///< This should be 400us if refresh timer is running at 2.5kHz
 
 /// Debug macros:
@@ -283,12 +284,12 @@ ISR(INT0_vect){
  */
 ISR(TIMER0_COMPA_vect)
 {
-//    DEBUG_TRIGGER;
+    DEBUG_TRIGGER;
     TCNT0H=0;
     TCNT0L=0;
     SET_FLAG(FLAG_TIMER);
 //    timer_flag=1;
-//    DEBUG_TRIGGER;
+    DEBUG_TRIGGER;
 }
 
 
@@ -514,9 +515,13 @@ void update_screen(void)
     static uint8_t cnt =0;
     uint8_t j;
     uint8_t k;
-    
+
+
+
+
+
     if (cnt++){
-        cnt=0;
+    	cnt=0;
        draw_col(i,0,0);   
     }else{
         if (i==(BUFFERSIZE>>1)){
@@ -631,7 +636,11 @@ int main(void)
 	init_timer0();
 	enable_output();
     
-    // TODO: setup clock to 16MHZ CLKSEL=001
+
+	//reduce power consumption in unused peripherals
+	// (minor change to current consumption)
+	PRR=(1<<PRTIM1)|(0<<PRTIM0)|(0<<PRUSI)|(1<<PRADC);
+
 
 	//
 	// Main Loop
@@ -671,6 +680,9 @@ int main(void)
 		}
         
         // TODO: Go to sleep (timers still running)
+		set_sleep_mode(SLEEP_MODE_IDLE);
+		sleep_mode();
+
 	}
 
 	return 0;   /* never reached */

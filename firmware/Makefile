@@ -17,7 +17,7 @@
 DEVICE     = attiny261
 CLOCK      = 8000000
 #PROGRAMMER = -c avrisp2 -P /dev/cu.usbserial-ER051111
-PROGRAMMER = -c avrisp2
+PROGRAMMER = -c avrisp2 -P /dev/ttyUSB2
 OBJECTS    = main.o
 FUSES      = -U hfuse:w:0xdf:m -U lfuse:w:0xe2:m
 
@@ -39,12 +39,23 @@ FUSES      = -U hfuse:w:0xdf:m -U lfuse:w:0xe2:m
 #        +-------------------- RSTDISBL (if set to 0, RESET pin is disabled)
 
 # Fuse low byte:
-# 0xe4 = 1 1 1 0   0 0 1 0 
+# 0xe2 = 1 1 1 0   0 0 1 0 
 #        ^ ^ \ /   \--+--/
 #        | |  |       +------- CKSEL 3..0 (8M internal RC)
 #        | |  +--------------- SUT 1..0 (crystal osc, BOD enabled)
 #        | +------------------ CKOUT (if 0, brown-out detector is enabled)
 #        +-------------------- CKDIV8 (if set to 0, clock divided to 8)
+
+
+# Fuse low byte:
+# 0xe1 = 1 1 1 0   0 0 0 1 
+#        ^ ^ \ /   \--+--/
+#        | |  |       +------- CKSEL 3..0 (16M internal RC and PLL)
+#        | |  +--------------- SUT 1..0 (crystal osc, BOD enabled)
+#        | +------------------ CKOUT (if 0, brown-out detector is enabled)
+#        +-------------------- CKDIV8 (if set to 0, clock divided to 8)
+
+
 
 # Tune the lines below only if you know what you are doing:
 
