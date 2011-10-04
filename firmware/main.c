@@ -630,6 +630,8 @@ int main(void)
 	init_serial_input();
 	init_timer0();
 	enable_output();
+    
+    // TODO: setup clock to 16MHZ CLKSEL=001
 
 	//
 	// Main Loop
@@ -667,6 +669,8 @@ int main(void)
 				//time_since_last_bit=0;
 			}
 		}
+        
+        // TODO: Go to sleep (timers still running)
 	}
 
 	return 0;   /* never reached */
