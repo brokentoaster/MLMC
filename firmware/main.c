@@ -148,7 +148,7 @@ void init_timer0(void)
     // set counter to 0x1f40 or 8000 counts this should give a 1ms interval 
     // set counter to 0x0320 for 800 counts -> 100uS interval
     // set counter to 0x0640 for 1600 counts -> 200uS interval
-    // set counter to 0x0C80 for 3200 counts -> 400uS interval (2.5Khz /16  => 156H.25Hz Refresh
+    // set counter to 0x0C80 for 3200 counts -> 400uS interval (2.5Khz /16 cols  => 156H.25Hz Refresh
     OCR0B =0x0c;
     OCR0A =0x80 ;
     
@@ -507,7 +507,9 @@ void draw_col(uint8_t column,                                                   
  * Draw the buffer to the screen
  * 
  * This will draw a single column of the current buffer to the screen. The 
- * column count will be incremented. 
+ * column count will be incremented. This routine will altenatly draw a blank column 
+ * without incrementing the column count. By controlling the ration of blank to 
+ * actual columns we can affect a brightness of the LED screen.
  */
 void update_screen(void)
 {
@@ -515,10 +517,6 @@ void update_screen(void)
     static uint8_t cnt =0;
     uint8_t j;
     uint8_t k;
-
-
-
-
 
     if (cnt++){
     	cnt=0;
