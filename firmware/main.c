@@ -70,7 +70,7 @@ $Author$
 
 #define FRAME_RESET_TIMEOUT 100 ///< number of screen refresh frames to wait before reseting serial interface
 							   ///< This calculates to 20mS if refresh timer is running at 2.5kHz
-#define LAST_BIT_CLOCK_TIME 2  ///< number of screen refresh frames to wait before clocking out the last bit
+#define LAST_BIT_CLOCK_TIME 1  ///< number of screen refresh frames to wait before clocking out the last bit
 							   ///< This should be 400us if refresh timer is running at 2.5kHz
 
 /// Debug macros:
@@ -284,12 +284,12 @@ ISR(INT0_vect){
  */
 ISR(TIMER0_COMPA_vect)
 {
-    DEBUG_TRIGGER;
+  //  DEBUG_TRIGGER;
     TCNT0H=0;
     TCNT0L=0;
     SET_FLAG(FLAG_TIMER);
 //    timer_flag=1;
-    DEBUG_TRIGGER;
+   // DEBUG_TRIGGER;
 }
 
 
@@ -507,31 +507,31 @@ void draw_col(uint8_t column,                                                   
  * Draw the buffer to the screen
  * 
  * This will draw a single column of the current buffer to the screen. The 
- * column count will be incremented. This routine will altenatly draw a blank column 
+ * column count will be incremented. This routine will alternately draw a blank column
  * without incrementing the column count. By controlling the ration of blank to 
  * actual columns we can affect a brightness of the LED screen.
  */
 void update_screen(void)
 {
-    static uint8_t i=0;
-    static uint8_t cnt =0;
-    uint8_t j;
-    uint8_t k;
+    static uint8_t current_column=0;											// this is the column 0-15 we should update next
+    static uint8_t cnt =0;														// this is the count value for the brightness
+    uint8_t upper_addr;															// byte address in buffer for upper half of column
+    uint8_t lower_addr;															// byte address in buffer for lower half of column
 
     if (cnt++){
-    	cnt=0;
-       draw_col(i,0,0);   
+    	cnt=0;																	// next time draw the actual column
+       draw_col(current_column,0,0);
     }else{
-        if (i==(BUFFERSIZE>>1)){
-            i =0;
+        if (current_column==(BUFFERSIZE>>1)){
+        	current_column =0;
         }else{
-            i++;
+        	current_column++;
         }
         
-        j = buffer_index + (i<<1) ;
-        j &= BUFFERSIZE-1 ;                                                     // limit to  size of buffer and roll any overflow
-        k  = j+1 &(BUFFERSIZE-1);                                               // limit to  size of buffer and roll any overflow
-        draw_col(i, buffer[j], buffer[k] );
+        upper_addr = buffer_index + (current_column<<1) ;
+        upper_addr &= BUFFERSIZE-1 ;                                             // limit to  size of buffer and roll any overflow
+        lower_addr  = upper_addr+1 &(BUFFERSIZE-1);                             // limit to  size of buffer and roll any overflow
+        draw_col(current_column, buffer[upper_addr], buffer[lower_addr] );
     }
 }
 
@@ -637,7 +637,7 @@ int main(void)
 
 	//reduce power consumption in unused peripherals
 	// (minor change to current consumption)
-	PRR=(1<<PRTIM1)|(0<<PRTIM0)|(0<<PRUSI)|(1<<PRADC);
+	// PRR=(1<<PRTIM1)|(0<<PRTIM0)|(0<<PRUSI)|(1<<PRADC);
 
 
 	//
@@ -664,22 +664,22 @@ int main(void)
                 PORTA &= ~( (1<<SCLCK_OUT));                                    // clear clock line 
 			}
 	
-			if (time_since_last_bit > FRAME_RESET_TIMEOUT){
-                // this is to abort the buffer if we have received a partial word but
-                // no clocks for some time. This should mean that the screens will
-                // synchronise if no data is received for some time.
-                // It should also make the system more robust should spurious clocks
-                // be received due to noise.
-                CLEAR_FLAG(FLAG_BUFFER_FULL);                                   // open the buffer again
-				serial_in_index = 16;                                           // reset buffer word bit pointer
-				serial_in_buffer = 0x0000;                                      // clear buffer word
-				//time_since_last_bit=0;
-			}
+//			if (time_since_last_bit > FRAME_RESET_TIMEOUT){
+//                // this is to abort the buffer if we have received a partial word but
+//                // no clocks for some time. This should mean that the screens will
+//                // synchronise if no data is received for some time.
+//                // It should also make the system more robust should spurious clocks
+//                // be received due to noise.
+//                CLEAR_FLAG(FLAG_BUFFER_FULL);                                   // open the buffer again
+//				serial_in_index = 16;                                           // reset buffer word bit pointer
+//				serial_in_buffer = 0x0000;                                      // clear buffer word
+//				//time_since_last_bit=0;
+//			}
 		}
         
-        // TODO: Go to sleep (timers still running)
-		set_sleep_mode(SLEEP_MODE_IDLE);
-		sleep_mode();
+        // Go to sleep (timers still running)
+		//set_sleep_mode(SLEEP_MODE_IDLE);
+		//sleep_mode();
 
 	}
 
