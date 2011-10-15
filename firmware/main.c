@@ -21,22 +21,12 @@
  * The Main operating loop for the LED_MATRIX MODULE
  */
 
-/* Source Control Keywords
-$Id$
-$Header$
-$Date$
-$DateTime$
-$Change$
-$File$
-$Revision$
-$Author$
-*/
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <inttypes.h>
 #include <util/delay.h>
- #include <avr/sleep.h>
+#include <avr/sleep.h>
 
 #include "fontset0.h"
 
@@ -61,17 +51,6 @@ $Author$
 #define SCLCK_IN    6  ///< clk from previous module (INT0)
 #define UNUSED_PB7  7  ///<  used by the Reset pin
 
-// For FAST USI
-#define USICLK_L  (1<<USIWM0)|(0<<USICS0)|(1<<USITC)
-#define USICLK_H  (1<<USIWM0)|(0<<USICS0)|(1<<USICLK)|(1<<USITC)
-#define HW_SPI 0                ///< set to 1 to use the fast inbuilt USI interface 150x faster.
-
-#define SOUT_DELAY_US 10        ///< us to wait in the clock cycle
-
-#define FRAME_RESET_TIMEOUT 4 ///< number of screen refresh frames to wait before reseting serial interface
-							   ///< This calculates to 20mS if refresh timer is running at 2.5kHz
-#define LAST_BIT_CLOCK_TIME 1  ///< number of screen refresh frames to wait before clocking out the last bit
-							   ///< This should be 400us if refresh timer is running at 2.5kHz
 
 /// Debug macros:
 // Toggle the DEBUGPIN on port B
@@ -81,15 +60,23 @@ $Author$
 #define DEBUG_TRIGGER PINB = (1<<DEBUG)
 
 
+// For FAST USI
+#define USICLK_L  (1<<USIWM0)|(0<<USICS0)|(1<<USITC)
+#define USICLK_H  (1<<USIWM0)|(0<<USICS0)|(1<<USICLK)|(1<<USITC)
+#define HW_SPI 0                ///< set to 1 to use the fast inbuilt USI interface 150x faster.
+
+#define SOUT_DELAY_US 10        ///< us to wait in the clock cycle
+
+#define FRAME_RESET_TIMEOUT 4 	///< number of screen refresh frames to wait before reseting serial interface
+							    ///< This calculates to 20mS if refresh timer is running at 2.5kHz
+
 #define BUFFERSIZE 32  				 		///< Size of ring buffer should be a power of 2
 volatile uint8_t buffer[BUFFERSIZE]; 		///< Buffer to contain the 256 bits on the screen.
 volatile uint8_t buffer_index;       		///< pointer to current start of buffer.
 volatile uint16_t serial_in_buffer;  		///< buffer for next word currently being clocked in
 volatile uint16_t serial_out_buffer; 		///< buffer for last word currently being clocked out
 volatile uint8_t serial_in_index;    		///< bit of word currently being clocked in or out of the module
-// volatile uint8_t sin_flag;
-//uint8_t screen_buffer[256];		 		///< Screen buffer one byte per pixel. // whoops only 128Bytes on a ATtiny261 need a Attiny861
-//volatile uint8_t timer_flag;
+
 volatile uint16_t time_since_last_bit=0; 	///< counter how many timer periods have elapsed since last edge
 volatile uint8_t last_clock_width=0;		///< timed value for last clock width
 
@@ -101,6 +88,88 @@ volatile uint8_t global_flags;				///< global variable for flags
 #define SET_FLAG(b)			(global_flags |= (1<<b))
 #define FLAG_IS_SET(b)		(global_flags & (1<<b))
 #define FLAG_IS_CLEAR(b) 	((global_flags & (1<<b)) == 0)
+
+
+
+// Hardware Initialisation functions
+void init_pins (void);
+void init_timer0(void);
+void init_timer1(void);
+void init_usi(void);
+void init_serial_input(void);
+
+//  Shift register functions
+void usi_send_byte(uint8_t data);
+void enable_output( void );
+void disable_ouput(void);
+
+// screen updating functions
+void update_screen(void);
+void draw_col(uint8_t column, uint8_t upper_byte, uint8_t lower_byte);
+uint8_t reverse_byte (uint8_t byte);
+void clock_new_ouput(void);
+
+// Serial and buffer functions
+void insert_word_into_buffer(void);
+
+
+
+/**
+ * Main operating loop for the software
+ */
+int main(void)
+{
+	//
+	// Hardware Initialisation
+	//
+	init_pins();
+	init_usi();
+	init_serial_input();
+	init_timer0();
+	init_timer1();
+	enable_output();
+
+	//reduce power consumption in unused peripherals
+	// (minor change to current consumption)
+	// PRR=(0<<PRTIM1)|(0<<PRTIM0)|(0<<PRUSI)|(1<<PRADC);
+
+	//
+	// Main Loop
+    //
+	for(;;){
+        // have we got a new word?
+		if (FLAG_IS_SET(FLAG_BUFFER_FULL)){
+			insert_word_into_buffer();                                          //save the word that just came in.
+		}
+
+		// Is it time to update the screen?
+		if (FLAG_IS_SET(FLAG_TIMER)){
+			CLEAR_FLAG(FLAG_TIMER);                                             // reset the timer flag
+			update_screen();                                                    // draw a single column of the screen buffer
+
+			// Do some other house keeping after updating the screen.
+			time_since_last_bit++;                                              // increment our refresh timer/counter (2.5khz)
+
+            // this is to abort the buffer if we have received a partial word but
+            // no clocks for some time. This should mean that the screens will
+            // synchronise if no data is received for some time.
+            // It should also make the system more robust should spurious clocks
+            // be received due to noise.
+			if ((time_since_last_bit == FRAME_RESET_TIMEOUT)&& FLAG_IS_CLEAR(FLAG_BUFFER_FULL)){
+				serial_in_index = 16;                                           // reset buffer word bit pointer
+				serial_in_buffer = 0x0000;                                      // clear buffer word
+			}
+		}
+
+        // Go to sleep (timers still running)
+		// .. Disabled as it seems to take too long to wake
+		//set_sleep_mode(SLEEP_MODE_IDLE);
+		//sleep_mode();
+
+	}
+
+	return 0;   /* never reached */
+}
 
 
 
@@ -213,36 +282,6 @@ void init_usi(void)
 
 
 
-///**
-// * Test the basic operation of the pins
-// *
-// * This will send some predetermined signals on the pins to check the PCB is in
-// * designed as expected by the software.
-// *
-// */
-//void test_pins(void)
-//{
-//    uint8_t i;
-//    //Toggle the SD_OUT PIN
-//    for(i=0;i<10;i++){
-//          PINA = (1<<SD_OUT); // toggle these bits
-//    }
-//
-//    //Toggle the SD_OUT pin and SCLCK_OUT pin
-//    for(i=0;i<10;i++){/* Set TCNT1 to 0x01FF */
-//    	TC1H = 0x01;
-//    	TCNT1 = 0xFF;
-//    	/* Read TCNT1 into i */
-//    	i = TCNT1;
-//    	i |= ((unsigned int)TC1H << 8);
-//          PINA = (1<<SD_OUT)|(1<<SCLCK_OUT);// toggle these bits
-//          PINB = (1<<SERIAL);
-//    }
-//
-//}
-
-
-
 /** 
  * setup the incoming Serial interface ISR
  */
@@ -269,6 +308,7 @@ void init_serial_input(void)
 
 
 
+
 /** 
  * Serial input ISR
  *
@@ -290,7 +330,7 @@ ISR(INT0_vect){
 	// disable the last bit clock as we have just seen an edge
 	TIMSK &= ~(1<<OCIE1A);
 
-	// re inable interupts so the screen update can happen
+	// re-enable interrupts so the screen update can happen
 	sei();
 
     // look for a rising edge
@@ -324,25 +364,23 @@ ISR(INT0_vect){
         PORTA |= (1<<SCLCK_OUT);                                                // set outgoing clock line
         time_since_last_bit=0;                                                  // reset our inter frame timer
 
-        // save the clock period for use later.
-        last_clock_width = TCNT1;
+		// save the clock period for use later.
+		last_clock_width = TCNT1;
 
-    	// Reset Timer1
-        TCNT1 = 0x00;
+		// Reset Timer1
+		TCNT1 = 0x00;
 
-        // setup the Output compare value
-        if (TIFR & (1<<TOV1)){
-        	OCR1A = 0xff;
-        }else{
-        	OCR1A =last_clock_width ;
-        }
+		// setup the Output compare value
+		if (TIFR & (1<<TOV1)){
+			OCR1A = 0xff;
+		}else{
+			OCR1A =last_clock_width ;
+		}
 
-        // enable the interrupt to clock out the last bit
-        TIFR |= (1<<TOV1)|(1<<OCF1A ); // reset the overflow and interrupt flag
-        asm volatile("nop\n\t"::);
-
-        TIMSK |= (1<<OCIE1A );
-
+		// enable the interrupt to clock out the last bit
+		TIFR |= (1<<TOV1)|(1<<OCF1A ); 											// reset the overflow and interrupt flag
+		asm volatile("nop\n\t"::);
+		TIMSK |= (1<<OCIE1A );
     }        
     //DEBUG_TRIGGER;
 
@@ -363,48 +401,22 @@ ISR(TIMER0_COMPA_vect)
     TCNT0H=0;
     TCNT0L=0;
     SET_FLAG(FLAG_TIMER);
-//    timer_flag=1;
    // DEBUG_TRIGGER;
 }
 
+
+
+/**
+ * Timer1 interrupt
+ *
+ * This ISR is used to clock out the final bit of a word if no new bit has been
+ * received. It then disables it self to give a "one-shot" action.
+ */
 ISR(TIMER1_COMPA_vect)
 {
-    PORTA &= ~(1<<SCLCK_OUT);			                                        // clear clock
+    PORTA &= ~(1<<SCLCK_OUT);			                            			// clear clock
     TIMSK &= ~(1<<OCIE1A);														// disable the interrupt
 }
-
-// USED DURING TESTING ONLY
-///**
-// * Send a byte out the serial out port to next module
-// *
-// * This will clock out the data byte 1 bit at a time. The data is clocked out
-// * Most significant bit first (MSB) and on the rising edge of the clock.
-// * The clock is active high and left low after last bit has been sent.
-// */
-//void Send_byte_next_module( uint8_t data ///< 8 bit data to be sent
-//                           )
-//{
-//    uint8_t temp;
-//    uint8_t i ;
-//
-//    temp = data;
-//
-//    for (i=0;i<8;i++){
-//        PORTA &= ~(1<<SCLCK_OUT);                                               // clear clock line
-//        _delay_us(SOUT_DELAY_US);
-//
-//        if (temp & 0x80){
-//            PORTA |= (1<<SD_OUT);                                               // set data bit
-//        }else{
-//            PORTA &= ~(1<<SD_OUT);                                              // clear data bit
-//        }
-//        PORTA |= (1<<SCLCK_OUT);                                                // set clock line
-//        temp <<= 1;                                                             // shift along by one
-//        _delay_us(SOUT_DELAY_US);
-//
-//    }
-//     PORTA &= ~( (1<<SCLCK_OUT)|(1<<SD_OUT) );                                  // clear clock and data line
-//}
 
 
 
@@ -497,42 +509,6 @@ void clock_new_ouput(void)
 
 
 
-///**
-// * Display a test pattern on the screen.
-// *
-// * This will display a test pattern on the screen to ensure that all of the LEDs
-// * are operating normally.
-// */
-//void test_all_LEDs(void)
-//{
-//    _delay_ms(100);
-//    usi_send_byte(0xff);
-//    usi_send_byte(0x00);
-//    usi_send_byte(0xff);
-//    usi_send_byte(0x00);
-//    clock_new_ouput();
-//    _delay_ms(100);
-//    usi_send_byte(0xff);
-//    usi_send_byte(0x00);
-//    usi_send_byte(0x00);
-//    usi_send_byte(0xff);
-//    clock_new_ouput();
-//    _delay_ms(100);
-//    usi_send_byte(0x00);
-//    usi_send_byte(0xff);
-//    usi_send_byte(0x00);
-//    usi_send_byte(0xff);
-//    clock_new_ouput();
-//    _delay_ms(100);
-//    usi_send_byte(0x00);
-//    usi_send_byte(0xff);
-//    usi_send_byte(0xff);
-//    usi_send_byte(0x00);
-//    clock_new_ouput();
-//}
-
-
-
 /**
  * Reverse a single byte 
  *
@@ -609,62 +585,11 @@ void update_screen(void)
         }
         
         upper_addr = buffer_index + (current_column<<1) ;
-        upper_addr &= BUFFERSIZE-1 ;                                             // limit to  size of buffer and roll any overflow
+        upper_addr &= BUFFERSIZE-1 ;                                            // limit to  size of buffer and roll any overflow
         lower_addr  = upper_addr+1 &(BUFFERSIZE-1);                             // limit to  size of buffer and roll any overflow
         draw_col(current_column, buffer[upper_addr], buffer[lower_addr] );
     }
 }
-
-
-// TESTING ONLY
-///**
-// * Draw the buffer to the screen  - Test brightness
-// *
-// * This will draw the current buffer and apply a brightness gradient from left
-// * to right for testing purposes
-// */
-//void draw_screen_test(void)
-//{
-//    uint8_t i;
-//    uint8_t j;
-//
-//    for (i=0;i<16;i++){
-//        for (j=0;j<16;j++){
-//             _delay_ms(10);
-//            if (i<=j){
-//                draw_col(i, buffer[(i<<1)], buffer[(i<<1)+1] );
-//            }else{
-//                draw_col(i,0,0);
-//            }
-//
-//        }
-//    }
-//}
-
-
-// TESTING ONLY
-///**
-// * Simple scrolling alphabet to test the screen
-// */
-//
-//void test_fontSet0 (void)
-//{
-//    static uint16_t character=200;
-//    static uint8_t count;
-//
-//    uint8_t i ;
-//    // uint8_t i;
-//
-//    if (count++==50) {
-//        character--;
-//        count=0;
-//    }
-//
-//    for (i=0;i<16;i++){
-//        draw_col(i,pgm_read_byte(fontSet0+character+i),pgm_read_byte(fontSet0-character+i));
-//	       _delay_ms(10);
-//    }
-//}
 
 
 
@@ -700,67 +625,158 @@ void insert_word_into_buffer(void)
 
 
 
+
+
+
+#ifdef USE_TEST_FUNCTIONS
 /**
- * Main operating loop for the software
+ * Test the basic operation of the pins
+ *
+ * This will send some predetermined signals on the pins to check the PCB is in
+ * designed as expected by the software.
+ *
  */
-int main(void)
+void test_pins(void)
 {
-    //
-	// Hardware Initialisation
-	//
-	init_pins();
-	init_usi();
-	init_serial_input();
-	init_timer0();
-	init_timer1();
-	enable_output();
-    
+    uint8_t i;
+    //Toggle the SD_OUT PIN
+    for(i=0;i<10;i++){
+          PINA = (1<<SD_OUT); // toggle these bits
+    }
 
-	//reduce power consumption in unused peripherals
-	// (minor change to current consumption)
-	// PRR=(0<<PRTIM1)|(0<<PRTIM0)|(0<<PRUSI)|(1<<PRADC);
+    //Toggle the SD_OUT pin and SCLCK_OUT pin
+    for(i=0;i<10;i++){/* Set TCNT1 to 0x01FF */
+    	TC1H = 0x01;
+    	TCNT1 = 0xFF;
+    	/* Read TCNT1 into i */
+    	i = TCNT1;
+    	i |= ((unsigned int)TC1H << 8);
+          PINA = (1<<SD_OUT)|(1<<SCLCK_OUT);// toggle these bits
+          PINB = (1<<SERIAL);
+    }
 
-
-	//
-	// Main Loop
-    //
-	for(;;){
-        // have we got a new word?
-		if (FLAG_IS_SET(FLAG_BUFFER_FULL)){
-			insert_word_into_buffer();                                          //save the word that just came in.
-		}
-        
-		// Is it time to update the screen?
-		if (FLAG_IS_SET(FLAG_TIMER)){
-			CLEAR_FLAG(FLAG_TIMER);                                             // reset the timer flag
-			update_screen();                                                    // draw a single column of the screen buffer
-
-			// Do some other house keeping after updating the screen.
-			time_since_last_bit++;                                              // increment our refresh timer/counter (2.5khz)
-
-//			if ((time_since_last_bit == LAST_BIT_CLOCK_TIME)){
-//                // ensure the last bit is clocked out properly if no further bits
-//                // are sent within <LAST_BIT_CLOCK_TIME>+1 periods. NOTE: last clock
-//                // width will be variable due to this.
-//                PORTA &= ~( (1<<SCLCK_OUT));                                    // clear clock line
-//			}
-//
-			if ((time_since_last_bit == FRAME_RESET_TIMEOUT)&& FLAG_IS_CLEAR(FLAG_BUFFER_FULL)){
-                // this is to abort the buffer if we have received a partial word but
-                // no clocks for some time. This should mean that the screens will
-                // synchronise if no data is received for some time.
-                // It should also make the system more robust should spurious clocks
-                // be received due to noise.
-				serial_in_index = 16;                                           // reset buffer word bit pointer
-				serial_in_buffer = 0x0000;                                      // clear buffer word
-			}
-		}
-        
-        // Go to sleep (timers still running)
-		//set_sleep_mode(SLEEP_MODE_IDLE);
-		//sleep_mode();
-
-	}
-
-	return 0;   /* never reached */
 }
+
+
+
+/**
+ * Display a test pattern on the screen.
+ *
+ * This will display a test pattern on the screen to ensure that all of the LEDs
+ * are operating normally.
+ */
+void test_all_LEDs(void)
+{
+    _delay_ms(100);
+    usi_send_byte(0xff);
+    usi_send_byte(0x00);
+    usi_send_byte(0xff);
+    usi_send_byte(0x00);
+    clock_new_ouput();
+    _delay_ms(100);
+    usi_send_byte(0xff);
+    usi_send_byte(0x00);
+    usi_send_byte(0x00);
+    usi_send_byte(0xff);
+    clock_new_ouput();
+    _delay_ms(100);
+    usi_send_byte(0x00);
+    usi_send_byte(0xff);
+    usi_send_byte(0x00);
+    usi_send_byte(0xff);
+    clock_new_ouput();
+    _delay_ms(100);
+    usi_send_byte(0x00);
+    usi_send_byte(0xff);
+    usi_send_byte(0xff);
+    usi_send_byte(0x00);
+    clock_new_ouput();
+}
+
+
+
+/**
+ * Draw the buffer to the screen  - Test brightness
+ *
+ * This will draw the current buffer and apply a brightness gradient from left
+ * to right for testing purposes
+ */
+void draw_screen_test(void)
+{
+    uint8_t i;
+    uint8_t j;
+
+    for (i=0;i<16;i++){
+        for (j=0;j<16;j++){
+             _delay_ms(10);
+            if (i<=j){
+                draw_col(i, buffer[(i<<1)], buffer[(i<<1)+1] );
+            }else{
+                draw_col(i,0,0);
+            }
+
+        }
+    }
+}
+
+
+
+/**
+ * Simple scrolling alphabet to test the screen
+ */
+
+void test_fontSet0 (void)
+{
+    static uint16_t character=200;
+    static uint8_t count;
+
+    uint8_t i ;
+    // uint8_t i;
+
+    if (count++==50) {
+        character--;
+        count=0;
+    }
+
+    for (i=0;i<16;i++){
+        draw_col(i,pgm_read_byte(fontSet0+character+i),pgm_read_byte(fontSet0-character+i));
+	       _delay_ms(10);
+    }
+}
+
+
+
+/**
+ * Send a byte out the serial out port to next module
+ *
+ * This will clock out the data byte 1 bit at a time. The data is clocked out
+ * Most significant bit first (MSB) and on the rising edge of the clock.
+ * The clock is active high and left low after last bit has been sent.
+ */
+void Send_byte_next_module( uint8_t data ///< 8 bit data to be sent
+                           )
+{
+    uint8_t temp;
+    uint8_t i ;
+
+    temp = data;
+
+    for (i=0;i<8;i++){
+        PORTA &= ~(1<<SCLCK_OUT);                                               // clear clock line
+        _delay_us(SOUT_DELAY_US);
+
+        if (temp & 0x80){
+            PORTA |= (1<<SD_OUT);                                               // set data bit
+        }else{
+            PORTA &= ~(1<<SD_OUT);                                              // clear data bit
+        }
+        PORTA |= (1<<SCLCK_OUT);                                                // set clock line
+        temp <<= 1;                                                             // shift along by one
+        _delay_us(SOUT_DELAY_US);
+
+    }
+     PORTA &= ~( (1<<SCLCK_OUT)|(1<<SD_OUT) );                                  // clear clock and data line
+}
+#endif
+// EOF main.c
+
