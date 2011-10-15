@@ -285,9 +285,14 @@ void init_serial_input(void)
  * There is a delay of 3.6us to enter the ISR
  */
 ISR(INT0_vect){
-//	cli();
-	//TIMSK &= ~(1<<OCIE1A);
 	//DEBUG_TRIGGER;
+
+	// disable the last bit clock as we have just seen an edge
+	TIMSK &= ~(1<<OCIE1A);
+
+	// re inable interupts so the screen update can happen
+	sei();
+
     // look for a rising edge
     if (PINB & (1<<SCLCK_IN)){ 
     	if( FLAG_IS_CLEAR(FLAG_BUFFER_FULL) ){
@@ -340,7 +345,7 @@ ISR(INT0_vect){
 
     }        
     //DEBUG_TRIGGER;
-   // sei();
+
 }
 
 
