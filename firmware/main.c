@@ -61,11 +61,16 @@
 
 
 // For FAST USI
+// Cannot use the HW USI as PB0 is DI not DO as expected.
+// with a mod it may work but would break programming. (works)
+// TODO: Correct this on V2 of the PCB
 #define USICLK_L  (1<<USIWM0)|(0<<USICS0)|(1<<USITC)
 #define USICLK_H  (1<<USIWM0)|(0<<USICS0)|(1<<USICLK)|(1<<USITC)
-#define HW_SPI 0                ///< set to 1 to use the fast inbuilt USI interface 150x faster.
+#define HW_SPI 0                ///< set to 1 to use the fast inbuilt USI interface 5x faster. 7uS vs 32us
+#define SW_SPI_FAST 0			///< use a nasty looking but as fast as possible SPI routine 20uS vs 32us
+#define REVERSE_BYTE_USE_LOOKUP 0	///< use a 256 byte lookup tabel instead of calculating the reversed bit ordered byte
 
-#define SOUT_DELAY_US 10        ///< us to wait in the clock cycle
+#define SOUT_DELAY_US 10        ///< us to wait in the clock cycle for Send_byte_next_module routine
 
 #define FRAME_RESET_TIMEOUT 4 	///< number of screen refresh frames to wait before reseting serial interface
 							    ///< This calculates to 20mS if refresh timer is running at 2.5kHz
@@ -83,12 +88,16 @@ volatile uint8_t last_clock_width=0;		///< timed value for last clock width
 volatile uint8_t global_flags;				///< global variable for flags
 #define FLAG_TIMER 			0 				///< flag to indicate the regular refresh timer has elapsed
 #define FLAG_BUFFER_FULL 	1 				///< flag to indicate a word has been received on input
+#define FLAG_EDGE			2				///< an edge was detected onthe serial input clock
 
 #define CLEAR_FLAG(b) 		(global_flags &= ~(1<<b))
 #define SET_FLAG(b)			(global_flags |= (1<<b))
 #define FLAG_IS_SET(b)		(global_flags & (1<<b))
 #define FLAG_IS_CLEAR(b) 	((global_flags & (1<<b)) == 0)
 
+
+#define SET_OR_CLEAR_BIT_IF_BIT_IS_SET(bit,port,pin,data) \
+	((1<<(bit)) & (data) ) ? ((port) |= (1<<(pin))) : ((port) &= ~(1<<(pin)));
 
 
 // Hardware Initialisation functions
@@ -100,6 +109,7 @@ void init_serial_input(void);
 
 //  Shift register functions
 void usi_send_byte(uint8_t data);
+void usi_send_byte_LSB_FIRST(uint8_t data);
 void enable_output( void );
 void disable_ouput(void);
 
@@ -131,7 +141,7 @@ int main(void)
 
 	//reduce power consumption in unused peripherals
 	// (minor change to current consumption)
-	// PRR=(0<<PRTIM1)|(0<<PRTIM0)|(0<<PRUSI)|(1<<PRADC);
+	 PRR=(0<<PRTIM1)|(0<<PRTIM0)|(0<<PRUSI)|(1<<PRADC);
 
 	//
 	// Main Loop
@@ -162,9 +172,8 @@ int main(void)
 		}
 
         // Go to sleep (timers still running)
-		// .. Disabled as it seems to take too long to wake
-		//set_sleep_mode(SLEEP_MODE_IDLE);
-		//sleep_mode();
+		set_sleep_mode(SLEEP_MODE_IDLE);
+		sleep_mode();
 
 	}
 
@@ -179,9 +188,7 @@ int main(void)
  */
 void init_pins (void)
 {
-    PORTA = 0x00; // Set Port A to off / High Z
-    PORTB = 0x00; // Set port B to off / High Z
-    
+
     // set shift register output-enable and clear pins High (active low)
     PORTA = (0<<SCLCK_OUT)|(0<<SD_OUT)|(0<<SD_IN)|(1<<OE4)|(1<<OE3)|(1<<OE2)|(0<<RCK)|(1<<SCL);
     PORTB = (0<<SCLCK_IN)|(1<<OE1)|(0<<SCK)|(0<<MISO)|(0<<SERIAL)|(1<<DEBUG);
@@ -190,7 +197,7 @@ void init_pins (void)
     DDRA = (1<<SCLCK_OUT)|(1<<SD_OUT)|(0<<SD_IN)|(1<<OE4)|(1<<OE3)|(1<<OE2)|(1<<RCK)|(1<<SCL);
     
     // Set the direction of pins on Port B
-    DDRB = (0<<SCLCK_IN)|(1<<OE1)|(1<<SCK)|(0<<MISO)|(1<<SERIAL)|(1<<DEBUG);
+    DDRB = (0<<SCLCK_IN)|(1<<OE1)|(1<<SCK)|(1<<MISO)|(1<<SERIAL)|(1<<DEBUG);
 }
 
 
@@ -334,7 +341,7 @@ ISR(INT0_vect){
 	sei();
 
     // look for a rising edge
-    if (PINB & (1<<SCLCK_IN)){ 
+    if (PINB & (1<<SCLCK_IN)){
     	if( FLAG_IS_CLEAR(FLAG_BUFFER_FULL) ){
     		TCNT1 = 0x00;														// Reset Timer1
     		TIFR |= (1<<TOV1); // reset the overflow flag
@@ -381,7 +388,7 @@ ISR(INT0_vect){
 		TIFR |= (1<<TOV1)|(1<<OCF1A ); 											// reset the overflow and interrupt flag
 		asm volatile("nop\n\t"::);
 		TIMSK |= (1<<OCIE1A );
-    }        
+    }
     //DEBUG_TRIGGER;
 
 }
@@ -426,7 +433,7 @@ ISR(TIMER1_COMPA_vect)
  * This sends the 8 bit data byte out the SERIAL line and clocks the SCK with 
  * each byte. This routine has been optimised for speed.
  */
-void usi_send_byte(uint8_t data ///< 8 bit data to be sent
+ void usi_send_byte(uint8_t data ///< 8 bit data to be sent
                    )
 {
 #if (HW_SPI==1) 
@@ -448,25 +455,140 @@ void usi_send_byte(uint8_t data ///< 8 bit data to be sent
     USICR = USICLK_L; // bit 0 , LSB
     USICR = USICLK_H;
 #else
+  #if (SW_SPI_FAST==0) // this gives 940ns and 870ns per fist and following bits
     uint8_t temp;
     uint8_t i ;
-    
     temp = data;
-    
+    for (i=0;i<8;i++){
+         PORTB &= ~(1<<SCK);                                                     // clear clock line
+
+         if (temp & 0x80){
+             PORTB |= (1<<SERIAL);                                               // set data bit
+         }else{
+             PORTB &= ~(1<<SERIAL);                                              // clear data bit
+         }
+
+         PORTB |= (1<<SCK);                                                      // set clock line
+         temp <<= 1;                                                             // shift along by one
+     }
+  #else // this gives 610ns for all bits
+    // assume the clock line is low to begin with (set in init routine)
+    ((1<<7) & data) ? (PORTB |= (1<<SERIAL)) : (PORTB &= ~(1<<SERIAL));      	// clear or set data bit
+    PINB = (1<<SCK);                                                       		// set clock line
+    PINB = (1<<SCK);                                                       		// clear clock line
+    ((1<<6) & data) ? (PORTB |= (1<<SERIAL)) : (PORTB &= ~(1<<SERIAL));      	// clear or set data bit
+    PINB = (1<<SCK);                                                       		// set clock line
+    PINB = (1<<SCK);                                                       		// clear clock line
+    ((1<<5) & data) ? (PORTB |= (1<<SERIAL)) : (PORTB &= ~(1<<SERIAL));      	// clear or set data bit
+    PINB = (1<<SCK);                                                      	 	// set clock line
+    PINB = (1<<SCK);                                                       		// clear clock line
+    ((1<<4) & data) ? (PORTB |= (1<<SERIAL)) : (PORTB &= ~(1<<SERIAL));      	// clear or set data bit
+    PINB = (1<<SCK);                                                       		// set clock line
+    PINB = (1<<SCK);                                                       		// clear clock line
+    ((1<<3) & data) ? (PORTB |= (1<<SERIAL)) : (PORTB &= ~(1<<SERIAL));      	// clear or set data bit
+    PINB = (1<<SCK);                                                       		// set clock line
+    PINB = (1<<SCK);                                                       		// clear clock line
+    ((1<<2) & data) ? (PORTB |= (1<<SERIAL)) : (PORTB &= ~(1<<SERIAL));      	// clear or set data bit
+    PINB = (1<<SCK);                                                       		// set clock line
+    PINB = (1<<SCK);                                                       		// clear clock line
+    ((1<<1) & data) ? (PORTB |= (1<<SERIAL)) : (PORTB &= ~(1<<SERIAL));      	// clear or set data bit
+    PINB = (1<<SCK);                                                       		// set clock line
+    PINB = (1<<SCK);                                                       		// clear clock line
+    ((1<<0) & data) ? (PORTB |= (1<<SERIAL)) : (PORTB &= ~(1<<SERIAL));      	// clear or set data bit
+    PINB = (1<<SCK);                                                       		// set clock line
+  #endif
+    PORTB &= ~( (1<<SCK)|(1<<SERIAL) );                                         // clear clock and data line
+#endif
+}
+
+
+
+/**
+ * Send a single byte LSB first on the USI bus to the shift registers
+ *
+ * This sends the 8 bit data byte out the SERIAL line and clocks the SCK with
+ * each byte. This routine has been optimised for speed.
+ */
+  void usi_send_byte_LSB_FIRST(uint8_t data ///< 8 bit data to be sent
+                   )
+{
+#if (HW_SPI==1)
+	  uint8_t reversed_byte;
+
+#if (REVERSE_BYTE_USE_LOOKUP==1)
+	  reversed_byte = pgm_read_byte(reverse_lookup+data);
+#else
+	  reversed_byte = reverse_byte( data);
+#endif
+
+    USIDR = reversed_byte;
+    USICR = USICLK_L; // bit 7 , MSB
+    USICR = USICLK_H;
+    USICR = USICLK_L; // bit 6
+    USICR = USICLK_H;
+    USICR = USICLK_L; // bit 5
+    USICR = USICLK_H;
+    USICR = USICLK_L; // bit 4
+    USICR = USICLK_H;
+    USICR = USICLK_L; // bit 3
+    USICR = USICLK_H;
+    USICR = USICLK_L; // bit 2
+    USICR = USICLK_H;
+    USICR = USICLK_L; // bit 1
+    USICR = USICLK_H;
+    USICR = USICLK_L; // bit 0 , LSB
+    USICR = USICLK_H;
+#else
+
+#if (SW_SPI_FAST==0)
+    uint8_t temp;
+    uint8_t i ;
+
+    temp = data;
+
     for (i=0;i<8;i++){
         PORTB &= ~(1<<SCK);                                                     // clear clock line
-        
-        if (temp & 0x80){
+
+        if (temp & 0x01){
             PORTB |= (1<<SERIAL);                                               // set data bit
         }else{
             PORTB &= ~(1<<SERIAL);                                              // clear data bit
         }
-        
+
         PORTB |= (1<<SCK);                                                      // set clock line
-        temp <<= 1;                                                             // shift along by one
+        temp >>= 1;                                                             // shift along by one
     }
+#else // this gives 620ns for all bits
+
+   // PINB = (1<<SCK);                                                       	// toggle clock line
+    SET_OR_CLEAR_BIT_IF_BIT_IS_SET(0,PORTB,SERIAL,data);						// clear or set data bit
+    PINB = (1<<SCK);                                                       		// set clock line
+    PINB = (1<<SCK);                                                       		// toggle clock line
+    SET_OR_CLEAR_BIT_IF_BIT_IS_SET(1,PORTB,SERIAL,data);						// clear or set data bit
+    PINB = (1<<SCK);                                                       		// set clock line
+    PINB = (1<<SCK);                                                       		// toggle clock line
+    SET_OR_CLEAR_BIT_IF_BIT_IS_SET(2,PORTB,SERIAL,data);						// clear or set data bit
+    PINB = (1<<SCK);                                                       		// set clock line
+    PINB = (1<<SCK);                                                       		// toggle clock line
+    SET_OR_CLEAR_BIT_IF_BIT_IS_SET(3,PORTB,SERIAL,data);						// clear or set data bit
+    PINB = (1<<SCK);                                                       		// set clock line
+
+    PINB = (1<<SCK);                                                       // toggle clock line
+    SET_OR_CLEAR_BIT_IF_BIT_IS_SET(4,PORTB,SERIAL,data);						// clear or set data bit
+    PINB = (1<<SCK);                                                       // set clock line
+    PINB = (1<<SCK);                                                       // toggle clock line
+    SET_OR_CLEAR_BIT_IF_BIT_IS_SET(5,PORTB,SERIAL,data);						// clear or set data bit
+    PINB = (1<<SCK);                                                       // set clock line
+    PINB = (1<<SCK);                                                       // toggle clock line
+    SET_OR_CLEAR_BIT_IF_BIT_IS_SET(6,PORTB,SERIAL,data);						// clear or set data bit
+    PINB = (1<<SCK);                                                       // set clock line
+    PINB = (1<<SCK);                                                       // toggle clock line
+    SET_OR_CLEAR_BIT_IF_BIT_IS_SET(7,PORTB,SERIAL,data);						// clear or set data bit
+    PINB = (1<<SCK);                                                       // set clock line
+#endif
+
     PORTB &= ~( (1<<SCK)|(1<<SERIAL) );                                         // clear clock and data line
-    
+
 #endif
 }
 
@@ -508,7 +630,7 @@ void clock_new_ouput(void)
 }
 
 
-
+#if (REVERSE_BYTE_USE_LOOKUP ==0)
 /**
  * Reverse a single byte 
  *
@@ -531,8 +653,34 @@ uint8_t reverse_byte (uint8_t byte ///< byte to reverse
 
     return r;
 }
+#else
+static uint8_t PROGMEM reverse_lookup[] = {
+	0x00,0x80,0x40,0xc0,0x20,0xa0,0x60,0xe0,0x10,0x90,0x50,0xd0,0x30,0xb0,0x70,0xf0,
+	0x08,0x88,0x48,0xc8,0x28,0xa8,0x68,0xe8,0x18,0x98,0x58,0xd8,0x38,0xb8,0x78,0xf8,
+	0x04,0x84,0x44,0xc4,0x24,0xa4,0x64,0xe4,0x14,0x94,0x54,0xd4,0x34,0xb4,0x74,0xf4,
+	0x0c,0x8c,0x4c,0xcc,0x2c,0xac,0x6c,0xec,0x1c,0x9c,0x5c,0xdc,0x3c,0xbc,0x7c,0xfc,
+	0x02,0x82,0x42,0xc2,0x22,0xa2,0x62,0xe2,0x12,0x92,0x52,0xd2,0x32,0xb2,0x72,0xf2,
+	0x0a,0x8a,0x4a,0xca,0x2a,0xaa,0x6a,0xea,0x1a,0x9a,0x5a,0xda,0x3a,0xba,0x7a,0xfa,
+	0x06,0x86,0x46,0xc6,0x26,0xa6,0x66,0xe6,0x16,0x96,0x56,0xd6,0x36,0xb6,0x76,0xf6,
+	0x0e,0x8e,0x4e,0xce,0x2e,0xae,0x6e,0xee,0x1e,0x9e,0x5e,0xde,0x3e,0xbe,0x7e,0xfe,
+	0x01,0x81,0x41,0xc1,0x21,0xa1,0x61,0xe1,0x11,0x91,0x51,0xd1,0x31,0xb1,0x71,0xf1,
+	0x09,0x89,0x49,0xc9,0x29,0xa9,0x69,0xe9,0x19,0x99,0x59,0xd9,0x39,0xb9,0x79,0xf9,
+	0x05,0x85,0x45,0xc5,0x25,0xa5,0x65,0xe5,0x15,0x95,0x55,0xd5,0x35,0xb5,0x75,0xf5,
+	0x0d,0x8d,0x4d,0xcd,0x2d,0xad,0x6d,0xed,0x1d,0x9d,0x5d,0xdd,0x3d,0xbd,0x7d,0xfd,
+	0x03,0x83,0x43,0xc3,0x23,0xa3,0x63,0xe3,0x13,0x93,0x53,0xd3,0x33,0xb3,0x73,0xf3,
+	0x0b,0x8b,0x4b,0xcb,0x2b,0xab,0x6b,0xeb,0x1b,0x9b,0x5b,0xdb,0x3b,0xbb,0x7b,0xfb,
+	0x07,0x87,0x47,0xc7,0x27,0xa7,0x67,0xe7,0x17,0x97,0x57,0xd7,0x37,0xb7,0x77,0xf7,
+	0x0f,0x8f,0x4f,0xcf,0x2f,0xaf,0x6f,0xef,0x1f,0x9f,0x5f,0xdf,0x3f,0xbf,0x7f,0xff,
+};
+#endif
 
+static uint8_t columna_lookup[] = {
+	127,191,223,239,247,251,253,254,255,255,255,255,255,255,255,255,
+};
 
+static uint8_t columnb_lookup[] = {
+	255,255,255,255,255,255,255,255,254,253,251,247,239,223,191,127,
+};
 
 /**
  * Draw a single column of the screen
@@ -545,14 +693,9 @@ void draw_col(uint8_t column,                                                   
               uint8_t lower_byte                                                ///< byte for lower half of column
               )
 {
-    uint16_t cola; 
-    uint16_t colb;
-    
-    colb = ~(1<<( column ) >> 8);
-    cola = ~(1<<(15-column)>>8);
-    usi_send_byte(cola);
-    usi_send_byte(colb);
-    usi_send_byte(reverse_byte( lower_byte));
+    usi_send_byte( columna_lookup[column]);
+    usi_send_byte( columnb_lookup[column]);
+    usi_send_byte_LSB_FIRST(lower_byte);
     usi_send_byte( upper_byte );
     clock_new_ouput();
 }
