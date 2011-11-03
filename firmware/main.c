@@ -66,7 +66,7 @@
 // TODO: Correct this on V2 of the PCB
 #define USICLK_L  (1<<USIWM0)|(0<<USICS0)|(1<<USITC)
 #define USICLK_H  (1<<USIWM0)|(0<<USICS0)|(1<<USICLK)|(1<<USITC)
-#define HW_SPI 0                ///< set to 1 to use the fast inbuilt USI interface 5x faster. 7uS vs 32us
+#define HW_SPI 0    		        ///< set to 1 to use the fast inbuilt USI interface 5x faster. 7uS vs 32us
 #define SW_SPI_FAST 0			///< use a nasty looking but as fast as possible SPI routine 20uS vs 32us
 #define REVERSE_BYTE_USE_LOOKUP 0	///< use a 256 byte lookup tabel instead of calculating the reversed bit ordered byte
 
@@ -226,7 +226,7 @@ void init_timer0(void)
     // set counter to 0x0320 for 800 counts -> 100uS interval
     // set counter to 0x0640 for 1600 counts -> 200uS interval
     // set counter to 0x0C80 for 3200 counts -> 400uS interval (2.5Khz /16 cols  => 156H.25Hz Refresh
-    OCR0B =0x0c;
+    OCR0B =0x0C;
     OCR0A =0x80 ;
     
     CLEAR_FLAG(FLAG_TIMER);
@@ -629,7 +629,7 @@ void clock_new_ouput(void)
     PINA = (1<<RCK);                                                            // Toggle this pin 1->0
 }
 
-
+#if (HW_SPI==1)
 #if (REVERSE_BYTE_USE_LOOKUP ==0)
 /**
  * Reverse a single byte 
@@ -672,7 +672,8 @@ static uint8_t PROGMEM reverse_lookup[] = {
 	0x07,0x87,0x47,0xc7,0x27,0xa7,0x67,0xe7,0x17,0x97,0x57,0xd7,0x37,0xb7,0x77,0xf7,
 	0x0f,0x8f,0x4f,0xcf,0x2f,0xaf,0x6f,0xef,0x1f,0x9f,0x5f,0xdf,0x3f,0xbf,0x7f,0xff,
 };
-#endif
+#endif //REVERSE_BYTE_LOOKUP
+#endif //HW_SPI
 
 static uint8_t columna_lookup[] = {
 	127,191,223,239,247,251,253,254,255,255,255,255,255,255,255,255,
@@ -717,10 +718,10 @@ void update_screen(void)
     uint8_t upper_addr;															// byte address in buffer for upper half of column
     uint8_t lower_addr;															// byte address in buffer for lower half of column
 
-    if (cnt++){
-    	cnt=0;																	// next time draw the actual column
-       draw_col(current_column,0,0);
-    }else{
+   // if (cnt++){
+   // 	cnt=0;																	// next time draw the actual column
+   //     draw_col(current_column,0,0);
+   // }else{
         if (current_column==(BUFFERSIZE>>1)){
         	current_column =0;
         }else{
@@ -731,7 +732,7 @@ void update_screen(void)
         upper_addr &= BUFFERSIZE-1 ;                                            // limit to  size of buffer and roll any overflow
         lower_addr  = upper_addr+1 &(BUFFERSIZE-1);                             // limit to  size of buffer and roll any overflow
         draw_col(current_column, buffer[upper_addr], buffer[lower_addr] );
-    }
+   // }
 }
 
 
@@ -819,7 +820,7 @@ void test_all_LEDs(void)
     _delay_ms(100);
     usi_send_byte(0xff);
     usi_send_byte(0x00);
-    usi_send_byte(0x00);
+    usi_send_byte(0x00); 8
     usi_send_byte(0xff);
     clock_new_ouput();
     _delay_ms(100);
@@ -848,7 +849,7 @@ void draw_screen_test(void)
 {
     uint8_t i;
     uint8_t j;
-
+    8
     for (i=0;i<16;i++){
         for (j=0;j<16;j++){
              _delay_ms(10);

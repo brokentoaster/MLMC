@@ -15,9 +15,9 @@
 # FUSES ........ Parameters for avrdude to flash the fuses appropriately.
 
 DEVICE     = attiny261
-CLOCK      = 8000000
+CLOCK      = 16000000
 #PROGRAMMER = -c avrisp2 -P /dev/cu.usbserial-ER051111
-PROGRAMMER = -c avrisp2 -P /dev/ttyUSB2
+PROGRAMMER = -c avrisp2 -P /dev/ttyUSB1
 OBJECTS    = main.o
 FUSES      = -U hfuse:w:0xdf:m -U lfuse:w:0xe2:m
 
