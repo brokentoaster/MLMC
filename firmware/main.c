@@ -718,21 +718,17 @@ void update_screen(void)
     uint8_t upper_addr;															// byte address in buffer for upper half of column
     uint8_t lower_addr;															// byte address in buffer for lower half of column
 
-   // if (cnt++){
-   // 	cnt=0;																	// next time draw the actual column
-   //     draw_col(current_column,0,0);
-   // }else{
-        if (current_column==(BUFFERSIZE>>1)){
-        	current_column =0;
-        }else{
-        	current_column++;
-        }
-        
+    if (cnt++){
+    	cnt=0;																	// next time draw the actual column
+        draw_col(current_column,0,0);
+    }else{
+       	current_column++;
+	current_column &= (BUFFERSIZE>>1)-1; 
         upper_addr = buffer_index + (current_column<<1) ;
         upper_addr &= BUFFERSIZE-1 ;                                            // limit to  size of buffer and roll any overflow
         lower_addr  = upper_addr+1 &(BUFFERSIZE-1);                             // limit to  size of buffer and roll any overflow
         draw_col(current_column, buffer[upper_addr], buffer[lower_addr] );
-   // }
+    }
 }
 
 

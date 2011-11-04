@@ -19,7 +19,7 @@ CLOCK      = 16000000
 #PROGRAMMER = -c avrisp2 -P /dev/cu.usbserial-ER051111
 PROGRAMMER = -c avrisp2 -P /dev/ttyUSB1
 OBJECTS    = main.o
-FUSES      = -U hfuse:w:0xdf:m -U lfuse:w:0xe2:m
+FUSES      = -U hfuse:w:0xdf:m -U lfuse:w:0xe1:m
 
 # ATtiny261 fuse bits (fuse bits for other devices are different!):
 # Example for 8 MHz internal oscillator
