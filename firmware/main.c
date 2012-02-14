@@ -28,8 +28,9 @@
 #include <util/delay.h>
 #include <avr/sleep.h>
 
+#ifdef USE_TEST_FUNCTIONS
 #include "fontset0.h"
-
+#endif
 
 // PORT A  
 #define SCLCK_OUT   0  ///< Serial clock output to next module
