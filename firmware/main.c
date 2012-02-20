@@ -339,6 +339,7 @@ ISR(INT0_vect){
 	TIMSK &= ~(1<<OCIE1A);
 
 	// re-enable interrupts so the screen update can happen
+    // .. \todo Shortening this whole ISR would be a better solution
 	sei();
 
     // look for a rising edge
