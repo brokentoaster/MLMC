@@ -1,4 +1,6 @@
 matrix_module.xcodeproj/project.xcworkspace/contents.xcworkspacedata
-matrix_module.xcodeproj/project.xcworkspace/xcuserdata/nick.xcuserdatad/UserInterfaceState.xcuserstate
-matrix_module.xcodeproj/xcuserdata/nick.xcuserdatad/xcschemes/firmware.xcscheme
-matrix_module.xcodeproj/xcuserdata/nick.xcuserdatad/xcschemes/xcschememanagement.plist
+matrix_module.xcodeproj/project.xcworkspace/xcuserdata/*.xcuserdatad/
+matrix_module.xcodeproj/xcuserdata/*.xcuserdatad/
+matrix_module.xcodeproj/xcuserdata/*.xcuserdatad/
+matrix_module.xcodeproj/*.pbxuser
+matrix_module.xcodeproj/*.perspectivev3
