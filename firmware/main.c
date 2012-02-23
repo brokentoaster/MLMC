@@ -33,24 +33,24 @@
 #endif
 
 // PORT A  
-#define SCLCK_OUT   0  ///< Serial clock output to next module
-#define SD_OUT      1  ///< Serial data output to next module
-#define SD_IN       2  ///< Serial data input from previous module 
-#define OE4         3  ///< Output enable 4th shift register
-#define OE3         4  ///< Output enable 3rd shift register
-#define OE2         5  ///< Output enable 2nd shift register
-#define RCK         6  ///< Register Clock for the shift registers
-#define SCL         7  ///< Master Clear for all SRs
+#define SCLCK_OUT   PA0  ///< Serial clock output to next module
+#define SD_OUT      PA1  ///< Serial data output to next module
+#define SD_IN       PA2  ///< Serial data input from previous module 
+#define OE4         PA3  ///< Output enable 4th shift register
+#define OE3         PA4  ///< Output enable 3rd shift register
+#define OE2         PA5  ///< Output enable 2nd shift register
+#define RCK         PA6  ///< Register Clock for the shift registers
+#define SCL         PA7  ///< Master Clear for all SRs
 
 // PORT B
-#define SERIAL      0  ///< Serial out to Shift Registers (USI)
-#define MISO        1  ///< MISO for SPI Bus
-#define SCK         2  ///< SCK for shift registers (USI)
-#define OE1         3  ///< Output enable 1st shift register
-#define DEBUG       4  ///< Debug trigger
-#define UNUSED_PB5  5  ///< Not used
-#define SCLCK_IN    6  ///< clk from previous module (INT0)
-#define UNUSED_PB7  7  ///<  used by the Reset pin
+#define SERIAL      PB0  ///< Serial out to Shift Registers (USI)
+#define MISO        PB1  ///< MISO for SPI Bus
+#define SCK         PB2  ///< SCK for shift registers (USI)
+#define OE1         PB3  ///< Output enable 1st shift register
+#define DEBUG       PB4  ///< Debug trigger
+#define UNUSED_PB5  PB5  ///< Not used
+#define SCLCK_IN    PB6  ///< clk from previous module (INT0)
+#define UNUSED_PB7  PB7  ///<  used by the Reset pin
 
 
 /// Debug macros:
