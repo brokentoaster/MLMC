@@ -67,14 +67,14 @@
 // TODO: Correct this on V2 of the PCB
 #define USICLK_L  (1<<USIWM0)|(0<<USICS0)|(1<<USITC)
 #define USICLK_H  (1<<USIWM0)|(0<<USICS0)|(1<<USICLK)|(1<<USITC)
-#define HW_SPI 0    		        ///< set to 1 to use the fast inbuilt USI interface 5x faster. 7uS vs 32us
-#define SW_SPI_FAST 0			///< use a nasty looking but as fast as possible SPI routine 20uS vs 32us
-#define REVERSE_BYTE_USE_LOOKUP 0	///< use a 256 byte lookup tabel instead of calculating the reversed bit ordered byte
+#define HW_SPI 0							///< set to 1 to use the fast inbuilt USI interface 5x faster. 7uS vs 32us
+#define SW_SPI_FAST 0						///< use a nasty looking but as fast as possible SPI routine 20uS vs 32us
+#define REVERSE_BYTE_USE_LOOKUP 0			///< use a 256 byte lookup tabel instead of calculating the reversed bit ordered byte
 
-#define SOUT_DELAY_US 10        ///< us to wait in the clock cycle for Send_byte_next_module routine
+#define SOUT_DELAY_US 10					///< us to wait in the clock cycle for Send_byte_next_module routine
 
-#define FRAME_RESET_TIMEOUT 4 	///< number of screen refresh frames to wait before reseting serial interface
-							    ///< This calculates to 20mS if refresh timer is running at 2.5kHz
+#define FRAME_RESET_TIMEOUT 4				///< number of screen refresh frames to wait before reseting serial interface
+											///< This calculates to 20mS if refresh timer is running at 2.5kHz
 
 #define BUFFERSIZE 32  				 		///< Size of ring buffer should be a power of 2
 volatile uint8_t buffer[BUFFERSIZE]; 		///< Buffer to contain the 256 bits on the screen.
@@ -96,7 +96,8 @@ volatile uint8_t global_flags;				///< global variable for flags
 #define FLAG_IS_SET(b)		(global_flags & (1<<b))
 #define FLAG_IS_CLEAR(b) 	((global_flags & (1<<b)) == 0)
 
-
+/// Set or clear a bit in a port 
+///
 #define SET_OR_CLEAR_BIT_IF_BIT_IS_SET(bit,port,pin,data) \
 	((1<<(bit)) & (data) ) ? ((port) |= (1<<(pin))) : ((port) &= ~(1<<(pin)));
 
@@ -475,28 +476,28 @@ ISR(TIMER1_COMPA_vect)
      }
   #else // this gives 610ns for all bits
     // assume the clock line is low to begin with (set in init routine)
-    ((1<<7) & data) ? (PORTB |= (1<<SERIAL)) : (PORTB &= ~(1<<SERIAL));      	// clear or set data bit
+	SET_OR_CLEAR_BIT_IF_BIT_IS_SET(7,PORTB,SERIAL,data)							// clear or set data bit
     PINB = (1<<SCK);                                                       		// set clock line
     PINB = (1<<SCK);                                                       		// clear clock line
-    ((1<<6) & data) ? (PORTB |= (1<<SERIAL)) : (PORTB &= ~(1<<SERIAL));      	// clear or set data bit
+    SET_OR_CLEAR_BIT_IF_BIT_IS_SET(6,PORTB,SERIAL,data)							// clear or set data bit
     PINB = (1<<SCK);                                                       		// set clock line
     PINB = (1<<SCK);                                                       		// clear clock line
-    ((1<<5) & data) ? (PORTB |= (1<<SERIAL)) : (PORTB &= ~(1<<SERIAL));      	// clear or set data bit
+	SET_OR_CLEAR_BIT_IF_BIT_IS_SET(5,PORTB,SERIAL,data)							// clear or set data bit
     PINB = (1<<SCK);                                                      	 	// set clock line
     PINB = (1<<SCK);                                                       		// clear clock line
-    ((1<<4) & data) ? (PORTB |= (1<<SERIAL)) : (PORTB &= ~(1<<SERIAL));      	// clear or set data bit
+	SET_OR_CLEAR_BIT_IF_BIT_IS_SET(4,PORTB,SERIAL,data)							// clear or set data bit
     PINB = (1<<SCK);                                                       		// set clock line
     PINB = (1<<SCK);                                                       		// clear clock line
-    ((1<<3) & data) ? (PORTB |= (1<<SERIAL)) : (PORTB &= ~(1<<SERIAL));      	// clear or set data bit
+	SET_OR_CLEAR_BIT_IF_BIT_IS_SET(3,PORTB,SERIAL,data)							// clear or set data bit
     PINB = (1<<SCK);                                                       		// set clock line
     PINB = (1<<SCK);                                                       		// clear clock line
-    ((1<<2) & data) ? (PORTB |= (1<<SERIAL)) : (PORTB &= ~(1<<SERIAL));      	// clear or set data bit
+	SET_OR_CLEAR_BIT_IF_BIT_IS_SET(2,PORTB,SERIAL,data)							// clear or set data bit
     PINB = (1<<SCK);                                                       		// set clock line
     PINB = (1<<SCK);                                                       		// clear clock line
-    ((1<<1) & data) ? (PORTB |= (1<<SERIAL)) : (PORTB &= ~(1<<SERIAL));      	// clear or set data bit
+	SET_OR_CLEAR_BIT_IF_BIT_IS_SET(1,PORTB,SERIAL,data)							// clear or set data bit
     PINB = (1<<SCK);                                                       		// set clock line
     PINB = (1<<SCK);                                                       		// clear clock line
-    ((1<<0) & data) ? (PORTB |= (1<<SERIAL)) : (PORTB &= ~(1<<SERIAL));      	// clear or set data bit
+	SET_OR_CLEAR_BIT_IF_BIT_IS_SET(0,PORTB,SERIAL,data)							// clear or set data bit
     PINB = (1<<SCK);                                                       		// set clock line
   #endif
     PORTB &= ~( (1<<SCK)|(1<<SERIAL) );                                         // clear clock and data line
@@ -562,7 +563,7 @@ ISR(TIMER1_COMPA_vect)
     }
 #else // this gives 620ns for all bits
 
-   // PINB = (1<<SCK);                                                       	// toggle clock line
+    // assume the clock line is low to begin with (set in init routine)
     SET_OR_CLEAR_BIT_IF_BIT_IS_SET(0,PORTB,SERIAL,data);						// clear or set data bit
     PINB = (1<<SCK);                                                       		// set clock line
     PINB = (1<<SCK);                                                       		// toggle clock line
