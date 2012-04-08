@@ -14,7 +14,7 @@
 #                is connected.
 # FUSES ........ Parameters for avrdude to flash the fuses appropriately.
 
-DEVICE     = attiny261
+DEVICE     = attiny861
 CLOCK      = 16000000
 #PROGRAMMER = -c avrisp2 -P /dev/cu.usbserial-ER051111
 PROGRAMMER = -c avrisp2 -P /dev/ttyUSB1
